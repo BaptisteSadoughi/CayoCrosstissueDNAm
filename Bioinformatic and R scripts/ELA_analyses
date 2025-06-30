@@ -1,0 +1,1286 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-06-07"
+---
+
+#color palette
+```{r}
+library(RColorBrewer)
+extended_palette <- colorRampPalette(brewer.pal(8, "Dark2"))(12)
+barplot(rep(1, 12), col = extended_palette, border = NA)
+
+tissues <- c("adrenal", "heart", "kidney", "liver", "lung", "omental adipose",
+             "pituitary", "skeletal muscle", "spleen", "thymus", "thyroid", "whole blood")
+
+tissue_colors <- setNames(extended_palette, tissues)
+
+subset_chromHMM_tissues <- c("adrenal", "heart", "kidney", "liver", "lung", "omental adipose", "skeletal muscle", "spleen", "thymus", "whole blood")
+
+# Subset colors for chromHMM plotting
+chromHMM_plot_colors <- tissue_colors[subset_chromHMM_tissues]
+```
+
+## Sharing analysis of mashr results
+```{r}
+for(ELA in ELAlist){
+
+lfsr<-read.table(gsub("000", ELA,'/path/to/mashr_results/000_LFSR_mashr_12tissues.txt'), h=T)
+pm<-read.table(gsub("000", ELA,'/path/to/mashr_results/000_pm_mashr_12tissues.txt'), h=T)
+allsites<-read.table(gsub("000", ELA,'/path/to/mashr_results/000_allsites.txt'), h=T)
+
+lfsr$id<-1:dim(lfsr)[1]
+pm$id<-1:dim(pm)[1]
+lfsr$site<-allsites$x
+pm$site<-allsites$x
+
+names(lfsr)<-names(pm)<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at', 'thyroid', 'thymus', 'pituitary', 'whole_blood', 'id', 'region')
+
+#set sig threshold 
+threshold <- 0.10
+
+# Count number of tissues (columns) below threshold for each row
+lfsr$sig_tissues <- apply(lfsr < threshold, 1, sum)
+
+# paste the names of the tissues (columns) below threshold for each row
+lfsr <- lfsr %>%
+  rowwise() %>%
+  mutate(
+    sig_which_tissues = paste(names(.)[1:12][c_across(1:12) < threshold], collapse = ",")
+  ) %>%
+  ungroup()
+
+lfsr_sig1<-subset(lfsr,sig_tissues>0)
+lfsr_sig1$within2_v2<-NA
+lfsr_sig1$focal_pm<-NA
+lfsr_sig1$tissues_within2<-NA
+lfsr_sig1$focal_tissue <- NA
+
+pm_sig1<-subset(pm, id %in% lfsr_sig1$id)
+
+for (i in 1:dim(lfsr_sig1)[1]){
+  
+	z<-min(lfsr_sig1[i,1:12])[1]
+	focal<-pm[lfsr_sig1$id[i],which(lfsr_sig1[i,1:12] == z)][1]
+	not_focal<-pm[lfsr_sig1$id[i],which(lfsr_sig1[i,1:12] != z)]
+	not_focal2<-ifelse(is.na(log2(as.numeric(not_focal)/as.numeric(focal))), 0, log2(as.numeric(not_focal)/as.numeric(focal))) #negative numbers returning NaN
+	lfsr_sig1$within2_v2[i]<-length(which(not_focal2 > -1 & not_focal2<1))
+	not_focal_df<-t(as.data.frame(not_focal2))
+	colnames(not_focal_df) <-colnames(not_focal)
+	lfsr_sig1$tissues_within2[i] <- paste(colnames(not_focal_df)[1:11][which(not_focal2 > -1 & not_focal2<1)], collapse = ",")
+	lfsr_sig1$focal_pm[i]<-mean(focal)
+}
+
+	lfsr_sig1<-lfsr_sig1 %>%
+  rowwise() %>%
+  mutate(focal_tissue = names(.)[1:12][which.min(c_across(1:12))]) %>%
+  ungroup()
+
+write.table(as.data.frame(lfsr_sig1), gsub("000", ELA,'/path/to/mashr_results/000_sharing.txt'),row.names=F,sep='\t')
+
+}
+```
+
+
+#make file with all sig and shared effects
+```{r}
+
+ELAlist <- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+
+for (ELA in ELAlist){
+r <- read.table(gsub("XXX",ELA,"/path/to/XXX_sharing.txt"), h=T)
+
+  #match with site/region name
+  sites<-read.table(gsub("XXX",ELA, "/path/to/mashr_results/XXX_allsites.txt"),h=T)
+  colnames(sites)<-"region"
+  sites$id<-1:dim(sites)[1]
+  
+  sigsites_location<-merge(r, sites)
+  sigsites_location$ELA<-ELA
+  
+     matchregion_cpg<- read.table("/path/to/regions_to_cpgs_mapping.bed") %>%
+  mutate(V1= gsub("chr", "Region_", V1)) %>%
+  mutate(region= paste(V1, V2, V3, sep="_")) %>%
+      mutate(CpGsite =  paste(V4, V5, V6, sep="_")) %>%
+      dplyr::select(region, CpGsite) 
+
+sig_cpgsites<-merge(sigsites_location, matchregion_cpg, by="region")
+
+
+assign(paste("sigsites_location", ELA, sep="_"), sig_cpgsites)
+
+}
+
+Sigsites_location_QuartELA<-do.call(rbind, list(sigsites_location_MomAllLossType, sigsites_location_RankIndex01, sigsites_location_q_kinBirth_sub, sigsites_location_q_grp_sub, sigsites_location_PrimpIndex, sigsites_location_CompetingSibIndex,sigsites_location_CumlQuartIndex6_4_sub))
+
+Sigsites_location_QuartELA$ELA_f = factor(Sigsites_location_QuartELA$ELA, levels=c('MomAllLossType','PrimpIndex','CompetingSibIndex','q_grp_sub',  'q_kinBirth_sub', 'RankIndex01', 'CumlQuartIndex6_4_sub'), labels=c("Maternal Loss","Primiparity","Competing Sibling", "Group size", "Kin network size", "Maternal rank",  "Cumulative adversity"))
+
+saveRDS(Sigsites_location_QuartELA, "/path/to/Sigsites_location_QuartELA.rds") #584453 rows.
+```
+
+
+#Make table with sig DMRs per tissue per ELA: Table S12
+```{r}
+Sigsites_location_QuartELA<- readRDS("/path/to/Sigsites_location_QuartELA.rds")
+
+result <- Sigsites_location_QuartELA %>%
+  dplyr::select(focal_tissue, ELA, region) %>%
+  distinct()
+
+merge3<-data.frame()
+
+for (i in ELAlist) {
+  
+  all_sites= read.table(paste0("/path/to/mashr_results/i,"_allsites.txt"))
+  pm<- read.table(paste0("/path/to/mashr_results/i,"_pm_mashr_12tissues.txt"),h=T)
+  colnames(pm)<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at', 'thyroid', 'thymus', 'pituitary', 'whole_blood')
+  pm$region<-all_sites$x
+  pm$ELA<-i
+  long<-pivot_longer(pm, cols=1:12, names_to="focal_tissue", values_to="pm")
+  merge1<-merge(result, long)
+  
+  lfsr<- read.table(paste0("/path/to/mashr_results/i,"_LFSR_mashr_12tissues.txt"), h=T)
+  colnames(lfsr)<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at', 'thyroid', 'thymus', 'pituitary', 'whole_blood')
+  lfsr$region<-all_sites$x
+  lfsr$ELA<-i
+  long<-pivot_longer(lfsr, cols=1:12, names_to="focal_tissue", values_to="lfsr")
+  merge2<-merge(merge1, long)
+  
+  merge3<- rbind(merge3, merge2)
+}
+
+merge3$ELA = factor(merge3$ELA, levels=c("MomAllLossType", "PrimpIndex", "CompetingSibIndex", "q_kinBirth_sub", "q_grp_sub", "RankIndex01", "CumlQuartIndex6_4_sub"), labels=c("Maternal loss","Primiparity","Competing sibling", "Kin network size", "Group size", "Maternal rank",  "Cumulative adveristy"))
+
+tidy_sigsites<- merge3 %>%
+  mutate(DMR= gsub("Region_", "chr", region)) %>%
+  select(focal_tissue, ELA, DMR, pm, lfsr)
+
+write.table(tidy_sigsites, "/path/to/SItables/ELAassociated_DMRs.txt", row.names=F, col.names=T, quote=F, sep="\t")
+```
+
+
+#Histogram of number of tissues each site is significant in 
+```{r}
+plot_list <- list()
+
+ELAlist <- c("MomAllLossType", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "RankIndex01", "CumlQuartIndex6_4_sub")
+
+for(ELAname in ELAlist){
+
+
+OneELA<-Sigsites_location_QuartELA %>%
+    filter(ELA == ELAname)
+
+sigsite_plot<-ggplot(data=OneELA, aes(x=sig_tissues)) +
+  geom_histogram(binwidth = 1, color="black", fill="lightgrey") +
+  theme_minimal() +
+  ggtitle(ELAname)+
+  ylab("Number of CpG sites") +
+  scale_x_continuous(breaks = seq(0, 12, by = 1)) + 
+  xlab("Number of tissues") +
+  ylim(0, 50000); sigsite_plot
+
+plot_list[[ELAname]] <- sigsite_plot
+
+}
+
+# Display all plots in a grid
+combined_plot <- ggarrange(plotlist = plot_list, 
+                           ncol=4,
+                           nrow = 2); combined_plot
+
+ggsave("/path/to/SigSiteHistogram.pdf", combined_plot, height=9, width=14)
+```
+
+
+#How many sig sites are there across all tissues and all ELAs?
+```{r}
+Sigsites_location_QuartELA<-readRDS("/path/to/Sigsites_location_QuartELA.rds")
+
+#Across all ELA sources and cumulative adveristy
+sig_totalsites<- Sigsites_location_QuartELA %>%
+  distinct(CpGsite);nrow(sig_totalsites) #204289
+
+sig_totalregions<- Sigsites_location_QuartELA %>%
+  distinct(region); nrow(sig_totalregions) #7942
+
+#Without cumulative adversity
+Individual_sources_sites<-Sigsites_location_QuartELA %>%
+  filter(ELA != "CumlQuartIndex6_4_sub") %>%
+  distinct(CpGsite); nrow(Individual_sources_sites) #198740
+
+Individual_sources_regions<-Sigsites_location_QuartELA %>%
+  filter(ELA != "CumlQuartIndex6_4_sub") %>%
+  distinct(region);nrow(Individual_sources_regions) #7533
+
+result <- Sigsites_location_QuartELA %>%
+  filter(ELA != "CumlQuartIndex6_4_sub") %>%
+  dplyr::select(focal_tissue, ELA, CpGsite) %>%
+  group_by(focal_tissue) %>%
+  distinct(CpGsite) %>%
+  summarize(num_sig_sites= n())
+
+#Only Cumulative adversity 
+CI_sites<-Sigsites_location_QuartELA %>%
+  filter(ELA == "CumlQuartIndex6_4_sub") %>%
+  distinct(CpGsite); nrow(CI_sites) #14058
+
+CI_regions<-Sigsites_location_QuartELA %>%
+  filter(ELA == "CumlQuartIndex6_4_sub") %>%
+  distinct(region);nrow(CI_regions) #785
+
+result <- Sigsites_location_QuartELA %>%
+  filter(ELA == "CumlQuartIndex6_4_sub") %>%
+  dplyr::select(focal_tissue, ELA, CpGsite) %>%
+  group_by(focal_tissue) %>%
+  distinct(CpGsite) %>%
+  summarize(num_sig_sites= n())
+```
+
+#What percent of sites are tissue shared
+```{r}
+sig_shared<- subset(Sigsites_location_QuartELA, within2_v2 == 11)
+total_shared<- sig_shared %>%
+    distinct(CpGsite)
+```
+
+
+#Figure 4A: Sig sites per tissue 
+```{r}
+Sigsites_location_QuartELA<- readRDS("/path/to/Sigsites_location_QuartELA.rds")
+
+length(unique(Sigsites_location_QuartELA$region))
+length(unique(Sigsites_location_QuartELA$CpGsite))
+
+result <- Sigsites_location_QuartELA %>%
+  dplyr::select(focal_tissue, ELA, CpGsite) %>%
+  group_by(focal_tissue) %>%
+  distinct(CpGsite) %>%
+  summarize(num_sig_sites= n())
+
+result$tissue_f = factor(result$focal_tissue, levels=c("adrenal", "heart", "kidney", "liver", "lung", "omental_at", "pituitary", "skeletal_muscle", "spleen", "thymus", "thyroid", "whole_blood"), labels=c("adrenal", "heart", "kidney", "liver", "lung", "omental adipose", "pituitary", "skeletal muscle", "spleen", "thymus", "thyroid", "whole blood"))
+
+sig_CpGsites_pertissue<-ggplot(data=result, aes(x=tissue_f, y=num_sig_sites)) +
+  geom_point(size=2) +
+  geom_segment(aes(x=tissue_f, xend=tissue_f, y=0, yend=num_sig_sites), linewidth=0.7)+
+  theme_bw(14) +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1, size=12), axis.text=element_text(color="black")) +
+  labs(y="ELA-associated CpG sites", x=NULL) +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")); sig_CpGsites_pertissue
+  
+ggsave("/path/to/plots/Sig_CpGsites_pertissue.pdf", sig_CpGsites_pertissue, width=4, height=4)
+```
+
+
+#Figure 4B: Histogram of maternal loss sites across tissues
+```{r}
+Sigsites_location_QuartELA<- readRDS("/path/to/Sigsites_location_QuartELA.rds")
+
+result <- Sigsites_location_QuartELA %>%
+  select(region, tissues_within2, focal_tissue, ELA, CpGsite) %>%
+  mutate(focalplus = paste(focal_tissue, tissues_within2, sep=",")) %>%
+  mutate(new= strsplit(focalplus, ",")) %>%
+  unnest(new) %>%
+  unique()
+
+MomLoss_sites<-subset(result, ELA == "MomAllLossType")[,c("CpGsite", "new")]
+MomLoss_sites$count<- 1
+
+MomLosssites_wide<-pivot_wider(data=MomLoss_sites, names_from= new, values_from= count, values_fill = 0)
+MomLosssites_wide_upset_plot<-MomLosssites_wide[,2:13]
+
+Num_tissues_sig<- as.data.frame(MomLosssites_wide_upset_plot)
+Num_tissues_sig$num_tissues<-rowSums(Num_tissues_sig)
+
+MomLoss_sigtissues_per_site<- ggplot(data=Num_tissues_sig, aes(x=num_tissues)) +
+  geom_histogram(bins=12, color="black", fill="grey90") +
+  scale_x_continuous(breaks = 1:12) +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")) +
+  xlab("Number of tissues") +
+  ylab("Number of CpG sites") +
+  theme_bw(14); MomLoss_sigtissues_per_site
+
+ggsave("/path/to/plots/MomLoss_sigtissues_per_site.pdf", MomLoss_sigtissues_per_site, height=3, width=3)
+```
+
+
+#Figure 4C: Maternal loss effect size heatmap
+```{r}
+library(pheatmap)
+library(ggpubr)
+library(grid)
+```
+
+```{r}
+ELA="MomAllLossType"
+
+pm_allsites<-read.table(gsub("XXX", ELA, '/path/to/mashr_results/XXX_pm_mashr_12tissues.txt'), h=T)
+
+sigsites<- read.table(gsub("XXX", ELA, '/path/to/mashr_results/XXX_sharing.txt'), h=T) 
+Notshared_sigsites<-subset(sigsites, within2_v2 != 11)
+
+pm_sigsites<- pm_allsites[Notshared_sigsites$id,]
+colnames(pm_sigsites)<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal muscle', 'omental adipose', 'thyroid', 'thymus', 'pituitary', 'whole blood')
+
+#transposed_data <- t(pm_sigsites)
+#dist_matrix <- dist(transposed_data, method = "euclidean")
+#hc <- hclust(dist_matrix)
+#plot(hc, main = "Hierarchical Clustering Dendrogram", xlab = "", sub = "", cex = 0.9)
+
+breaks <- seq(-0.1, 0.1, by=0.02)
+
+#remove the couple of sites that have really high or low betas because its making the scale too big to visualize
+filtered_df <- pm_sigsites[!apply(pm_sigsites, 1, function(row) any(row > 0.12 | row < -0.12)), ]
+
+nb.cols <- 10
+
+pal<-brewer.pal(8, "Dark2")
+#barplot(rep(1, 8), col = pal, border = NA)
+
+mycolors <- colorRampPalette(colors = c(pal[5], "white", pal[3]))(nb.cols)
+
+HM<-grid.grabExpr(pheatmap(filtered_df, 
+         border_color = "black",
+         cluster_rows = TRUE, # Cluster rows
+         show_rownames = FALSE, 
+         treeheight_col = 20,
+         treeheight_row = 80,
+         cluster_cols = TRUE,  # Cluster columns
+         legend=T,
+         breaks=breaks,
+         color = mycolors,  # Custom color gradient
+         fontsize = 14,
+         angle_col=45))
+
+  heatmap_plot <- as_ggplot(HM); heatmap_plot
+
+ggsave("/path/to/plots/MomAllLossType_HM.pdf", heatmap_plot, width=6, height=4)
+```
+
+
+# Figure 4D: CpG sites per ELA
+```{r}
+Sigsites_location_QuartELA<- readRDS("/path/to/Sigsites_location_QuartELA.rds")
+
+sig_per_ELA<- Sigsites_location_QuartELA %>%
+  group_by(ELA) %>%
+  distinct(CpGsite) %>%
+  summarize(num_sites= n()) %>%
+  mutate(type="all_sites")
+
+sig_shared<- subset(Sigsites_location_QuartELA, within2_v2 == 11)
+shared_per_ELA<- sig_shared %>%
+  group_by(ELA) %>%
+    distinct(CpGsite) %>%
+  summarize(num_sites = n()) %>%
+  mutate(type="shared_sites")
+
+Sig_v_shared<-do.call(rbind, list(sig_per_ELA,shared_per_ELA))
+
+Sig_v_shared$ELA_f = factor(Sig_v_shared$ELA, levels=c('MomAllLossType','PrimpIndex','CompetingSibIndex','q_grp_sub',  'q_kinBirth_sub', 'RankIndex01', 'CumlQuartIndex6_4_sub'), labels=c("Maternal Loss","Primiparity","Competing Sibling", "Group size", "Kin network size", "Maternal rank",  "Cumulative adversity"))
+
+Sig_v_shared$x_dodge <- as.numeric(as.factor(Sig_v_shared$ELA_f)) + 
+  (as.numeric(as.factor(Sig_v_shared$type)) - 2) * 0.25
+
+SigTypes_two_plot<-ggplot(Sig_v_shared, aes(x = x_dodge, y = num_sites, color = type, shape=type)) +
+  geom_segment(aes(x = x_dodge, xend = x_dodge, y = 0, yend = num_sites), size = 0.7) +
+  geom_point(size = 2) +
+  theme(axis.title.y= element_text(size=10), axis.text.x= element_text(angle= 45, hjust=1, size=10), legend.title=element_blank()) +
+  scale_x_continuous(breaks = unique(as.numeric(as.factor(Proportion_each_data$ELA_f))),
+                     labels = unique(Proportion_each_data$ELA_f)) +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")) +
+  scale_color_manual(values = c("all_sites" = "black", "shared_sites" = "grey60"), labels = c("All sites", "Tissue-shared")) +
+  scale_shape_manual(values = c("all_sites" = 16, "shared_sites" = 17), labels = c("All sites", "Tissue-shared")) +
+  labs(y="ELA-associated CpG sites", x=NULL, color=NULL, shape=NULL) +
+  theme_bw(14) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=13), legend.position=c(0.7, 0.8), axis.text=element_text(color="black")); SigTypes_two_plot
+
+ggsave("/path/to/plots/SigTypes_two_plot.pdf", SigTypes_two_plot, width=3.5, height=4); SigTypes_two_plot
+```
+
+## Figure 4E: Histogram of adipose site sharing across ELAs 
+```{r}
+result <- Sigsites_location_QuartELA %>%
+  select(region, tissues_within2, focal_tissue, ELA, CpGsite) %>%
+  mutate(focalplus = paste(focal_tissue, tissues_within2, sep=",")) %>%
+  mutate(new= strsplit(focalplus, ",")) %>%
+  unnest(new) %>%
+  unique()
+
+omental_sites<-subset(result, new == "omental_at")[,c("CpGsite", "ELA")]
+omental_sites$count<- 1
+omentalsites_wide<-pivot_wider(data=omental_sites, names_from= ELA, values_from= count, values_fill = 0)
+omentalsites_wide_upset_plot<-omentalsites_wide[,2:8]
+
+Num_ELAs_sig<- as.data.frame(omentalsites_wide_upset_plot)
+Num_ELAs_sig$num_ELAs<-rowSums(Num_ELAs_sig)
+
+Omental_sigELAs_per_site<-ggplot(data=Num_ELAs_sig, aes(x=num_ELAs)) +
+  geom_histogram(bins=4, color="black", fill="lightgrey") +
+  scale_x_continuous(breaks = 1:7) +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")) +
+  ylab("Number of CpG sites") +
+  xlab("Number of adversities") +
+  theme_bw(14);Omental_sigELAs_per_site
+
+ggsave("/path/to/plots/Omental_sigELAs_per_site.pdf", Omental_sigELAs_per_site, height=3, width=3)
+```
+
+
+#Figure 4F: plot percent methylation of a tissue shared vs tissue dependent site
+```{r}
+ml_sharing<-read.table("/path/to/mashr_results/MomAllLossType_sharing.txt", h=T )
+allsites<-read.table("/path/to/mashr_results/MomAllLossType_allsites.txt",h=T)
+locations<- allsites[ml_sharing$id, ]
+ml_sharing_locations<-cbind(ml_sharing, locations)
+
+#load meta data associated with each lid_pid
+metadata_lid = read.table("/path/to/Cayo_meth_metadata/metadata_final_lidpids_Nov24.txt", sep = "\t", header = TRUE) %>%
+  mutate(AnimalID.text= paste("'", monkey_id, sep=""))
+ELA_data = read.csv("/path/to/ELA_data/ELA_multitissueDNAm.csv")
+meta_ELA<-merge(metadata_lid, ELA_data, by="AnimalID.text")
+```
+
+#tissue-shared example
+```{r}
+tissue_oi<-c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thyroid", "thymus", "whole_blood")
+df <- as.data.frame(matrix(NA, 0, 0))
+
+  for(tissue in tissue_oi){
+    filename <- gsub("XXX",tissue,"/path/to/Cayotissue_CpG_coverage/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
+  
+    # load data
+  r <- readRDS(filename)
+  
+  #filter for sites in common
+  pmeth<-r$pmeth
+  shared_site<-as.data.frame(pmeth["Region_8_942491_942771",])
+  shared_site$tissue<- tissue
+  df <- rbind(df, shared_site)
+  }
+
+colnames(df)<- c("pmeth", "tissue")
+df$lid_pid<-rownames(df)
+df<-na.omit(df)
+
+meta_momloss<- meta_ELA %>%
+  select("lid_pid", "MomAllLossType")
+
+df_ELA<-merge(df, meta_momloss, by="lid_pid")
+df_ELA$MomAllLossType<-as.factor(df_ELA$MomAllLossType)
+df_ELA$tissue<-gsub("omental_at", "omental adipose", df_ELA$tissue)
+df_ELA$tissue<-gsub("skeletal_muscle", "skeletal muscle", df_ELA$tissue)
+df_ELA$tissue<-gsub("whole_blood", "whole blood", df_ELA$tissue)
+
+df_ELA_sum<- df_ELA %>%
+  group_by(tissue, MomAllLossType) %>%
+  summarise(mean=mean(pmeth), sd=sd(pmeth)) %>%
+  mutate(meanplus= mean + sd) %>%
+  mutate(meanminus= mean-sd)
+
+tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle"))
+extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12), tissue_plot)
+
+sharedsite_momloss_plot<- ggplot(data=df_ELA_sum, aes(x=tissue, y=mean, color=tissue, shape=MomAllLossType)) +
+  geom_point(size=3, position=position_dodge(width=0.7)) +
+  geom_errorbar(aes(x=tissue, ymin=meanminus, ymax=meanplus), position=position_dodge(width=0.7), width=0.4) +
+  scale_color_manual(values=extended_palette) +
+  theme_bw(14) +
+  ylim(0.2, 1)+
+  ylab("Mean % methylation") +
+  xlab(NULL) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=14, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="none"); sharedsite_momloss_plot
+
+ggsave("/path/to/plots/sharedsite_momloss_pmeth_plot.pdf", sharedsite_momloss_plot, width=6, height=3)
+```
+
+#tissue dependent example
+```{r}
+#pituitary: Region_16_16993252_16993705
+
+tissue_oi<-c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thyroid", "thymus", "whole_blood")
+df <- as.data.frame(matrix(NA, 0, 0))
+
+  for(tissue in tissue_oi){
+    filename <- gsub("XXX",tissue,"/path/to/Cayotissue_CpG_coverage/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
+  
+    # load data
+  r <- readRDS(filename)
+  
+  #filter for sites in common
+  pmeth<-r$pmeth
+  shared_site<-as.data.frame(pmeth["Region_16_16993252_16993705",])
+  shared_site$tissue<- tissue
+  df <- rbind(df, shared_site)
+  }
+
+colnames(df)<- c("pmeth", "tissue")
+df$lid_pid<-rownames(df)
+df<-na.omit(df)
+
+meta_momloss<- meta_ELA %>%
+  select("lid_pid", "MomAllLossType")
+
+df_ELA<-merge(df, meta_momloss, by="lid_pid")
+df_ELA$MomAllLossType<-as.factor(df_ELA$MomAllLossType)
+df_ELA$tissue<-gsub("omental_at", "omental adipose", df_ELA$tissue)
+df_ELA$tissue<-gsub("skeletal_muscle", "skeletal muscle", df_ELA$tissue)
+df_ELA$tissue<-gsub("whole_blood", "whole blood", df_ELA$tissue)
+
+uniquesite_momloss_pmeth_plot<- ggplot(data=df_ELA, aes(x=tissue, y=pmeth, fill=MomAllLossType)) +
+  geom_boxplot(outlier.shape=NA) +
+  ggtitle("Tissue-specific region") + 
+  theme_minimal() +
+  scale_fill_manual(values=c("gray", "white")) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1), legend.position = "none", plot.title=element_text(hjust=0.5)) +
+  ylab("Percent methylation") +
+  xlab(""); uniquesite_momloss_pmeth_plot
+
+df_ELA_sum<- df_ELA %>%
+  group_by(tissue, MomAllLossType) %>%
+  summarise(mean=mean(pmeth), sd=sd(pmeth)) %>%
+  mutate(meanplus= mean + sd) %>%
+  mutate(meanminus= mean-sd)
+
+tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle"))
+extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12), tissue_plot)
+
+uniquesite_momloss_plot<- ggplot(data=df_ELA_sum, aes(x=tissue, y=mean, color=tissue, shape=MomAllLossType)) +
+  geom_point(size=3, position=position_dodge(width=0.7)) +
+  geom_errorbar(aes(x=tissue, ymin=meanminus, ymax=meanplus), position=position_dodge(width=0.7), width=0.4) +
+  scale_color_manual(values=extended_palette) +
+  #ylim(0.65, 1)+
+  theme_bw(14) +
+  ylab("Mean % methylation") +
+  xlab(NULL) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=14, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="none"); uniquesite_momloss_plot
+
+ggsave("/path/to/plots/unique_pmeth_colorplot.pdf", uniquesite_momloss_plot, width=6, height=3)
+```
+
+############################
+### CHROM HMM enrichment ###
+############################
+
+
+### Figure 4G: tissue shared sites
+```{r}
+### Assign regulatory regions -----------------
+## Load output from bedtools intersect of all sites with tissue specific chromHMM annotations
+
+temp <- intersect(list.files(path = "/path/to/annotations/results/",
+                             pattern="allELA*"),
+                  list.files(path = "/path/to/annotations/results/",
+                             pattern="*chromHMMannotation.bed"))
+
+# read in files into a list
+regionFiles = lapply(temp, function(x){
+  tmp <- read.delim(file = paste0("/path/to/annotations/results/", x),
+                    sep = '\t', header = F) 
+  tmp <- tmp %>%
+    mutate(cpgsite = paste(V1,V2,V3, sep="_"))
+  return(tmp)
+})
+names(regionFiles) <- gsub(c(temp), pattern = ".bed", replacement = "")
+rm(temp)
+
+all_site_bed<-read.table("/path/to/mashr_results/allELA_onlycpgs.bed", h=F)
+all_sites <- all_site_bed[, c("V1", "V2", "V3")] %>%
+  mutate(cpgsite = paste(V1,V2, V3, sep="_"))
+
+result_list <- list()
+
+tissues_10<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at',  'thymus', 'whole_blood')
+  
+for (tissue in tissues_10) {
+  # Add blank columns for each region type and then add 1's where the site is in that region 
+reg_regions <- c("1_TssA", "2_TssAFlnk", "3_TxFlnk", "4_Tx", "5_TxWk", "6_EnhG", "7_Enh", "8_ZNF/Rpts", "9_Het", "10_TssBiv", "11_BivFlnk", "12_EnhBiv", "13_ReprPC", "14_ReprPCWk", "15_Quies")
+for (k in c(reg_regions)) { # make new column for each regulatory region, fill with 0
+  all_sites[, paste0(k)] <- 0
+}
+
+  for(r in c(reg_regions)){
+    
+  # Fill with 1 if site has a specific annotation in the region
+    selected_df_name <- names(regionFiles)[grepl(tissue, names(regionFiles))]
+tissue_file<-regionFiles[[selected_df_name]]
+annotation_sites<-subset(tissue_file, V8 == r)
+all_sites[all_sites$cpgsite %in% annotation_sites$cpgsite, r] <- 1
+  }
+  
+sharedsites_perELA<-data.frame()
+  
+ ELAlist <- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+  
+for (ELA in ELAlist){
+  
+  ELAresults<-read.table(gsub("000", ELA, "/path/to/mashr_results/000_sharing.txt"), h=T) %>%
+  separate(region, c("Region", "chr", "start", "end")) %>%
+  mutate(newchr= paste0("chr", chr)) %>%
+  mutate(region= paste(newchr, start, end, sep="_")) %>%
+    filter(within2_v2 == 11)
+  
+tissue_ELA<- ELAresults %>%
+  filter(str_detect(focal_tissue, tissue) | str_detect(tissues_within2, tissue)) %>%
+  mutate(ELA = ELA) %>%
+  mutate(test_tissue = tissue)
+
+sharedsites_perELA<-rbind(sharedsites_perELA, tissue_ELA)
+
+} 
+  
+uniqueELAregions<-unique(sharedsites_perELA$region)
+
+matchregion_cpg<- read.table('/path/to/regions_to_cpgs_mapping.bed') %>%
+  mutate(region=paste(V1, V2, V3, sep="_"))
+sigcpgs<-subset(matchregion_cpg, region %in% uniqueELAregions) %>%
+  dplyr::select(c(V4,V5,V6)) %>%
+  mutate(cpgsite= paste(V4,V5,V6, sep="_"))
+
+all_sites[,"sig"] <- 0
+all_sites[all_sites$cpgsite %in% sigcpgs$cpgsite,"sig"] <- 1
+
+result_list[[tissue]]<-all_sites
+}  
+  
+# fishers test
+
+pvalue_df <- as.data.frame(matrix(NA, nrow = 15, ncol = 10))
+rownames(pvalue_df) <- reg_regions
+colnames(pvalue_df) <- tissues_10
+
+OR_df <- as.data.frame(matrix(NA, nrow = 15, ncol = 10))
+rownames(OR_df) <- reg_regions
+colnames(OR_df) <- tissues_10
+
+for(tissue in tissues_10){
+  for(r in c(reg_regions)){
+      selected_df_name <- names(result_list)[grepl(tissue, names(result_list))]
+      tissue_file<-result_list[[selected_df_name]]
+    FT<-fisher.test(table(tissue_file[,r], tissue_file$sig))
+    pvalue_df[r,tissue]<- FT$p.value
+    OR_df[r,tissue] <- FT$estimate[[1]]
+  }
+}
+
+colnames(pvalue_df)<- colnames(OR_df)<- c("liver", "lung", "kidney",  "spleen", "heart", "adrenal", "skeletal_muscle", "omental_at", "thymus", "whole_blood")
+
+write.table(pvalue_df, 'allELA_tissueshared_chromHMMenrichment_pvalues.txt',quote=F,sep='\t')
+write.table(OR_df, 'allELA_tissueshared_chromHMMenrichment_oddsratio.txt',quote=F,sep='\t')
+
+longOR<-pivot_longer(OR_df, cols= colnames(OR_df)[1:10], values_to= "OR", names_to= "tissue")
+
+pvalue_df$annotation<-rownames(pvalue_df)
+
+longpvalue<-pivot_longer(pvalue_df, cols= c("liver", "adrenal", "lung", "heart", "kidney", "spleen", "omental adipose", "skeletal muscle", "thymus", "whole blood"), values_to="pvalue", names_to="tissue")
+
+plot_data<-merge(longOR, longpvalue)
+plot_data$padjust<- p.adjust(plot_data$pvalue, method="BH")
+plot_data <- plot_data %>%
+  mutate(significant= ifelse(padjust < 0.1, "Y", "N"))
+
+
+plot_data$annotation_f = factor(plot_data$annotation, levels=c("1_TssA", "2_TssAFlnk", "3_TxFlnk", "4_Tx", "5_TxWk", "6_EnhG", "7_Enh", "8_ZNF/Rpts", "9_Het", "10_TssBiv", "11_BivFlnk", "12_EnhBiv", "13_ReprPC", "14_ReprPCWk", "15_Quies"), labels=c("Active TSS","Flanking Active TSS","Transcr. at gene 5' and 3'", "Strong transcription", "Weak transcription", "Genic enhancers",  "Enhancers", "ZNP genes & repeats", "Heterochromatin", "Bivalent/Poised TSS", "Flanking Bivalent TSS/Enh", "Bivalent Enhancer", "Repressed PolyComb", "Weak Repressed PolyComb", "Quiescent"))
+
+plot_data$tissue = factor(plot_data$tissue)
+
+alltissue_chromhmm_plot<- ggplot(data=plot_data, aes(x=annotation_f, y=log2(OR), fill=tissue, group=tissue)) +
+  geom_line(aes(color=tissue), size=0.8) +
+  geom_point(aes(alpha=significant), size=3, pch=21, color="black") +
+  scale_alpha_manual(values = c("Y" = 1, "N" = 0.2), guide = guide_legend(nrow = 2)) +
+  scale_fill_manual(values= chromHMM_plot_colors, guide = guide_legend(nrow = 2)) +
+  scale_color_manual(values= chromHMM_plot_colors, guide = guide_legend(nrow = 2)) +
+  theme_bw() +
+  geom_hline(yintercept=0, linetype="dashed") +
+  ylab("log2-transformed odds ratio") +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=12, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="bottom") +
+  xlab(""); alltissue_chromhmm_plot
+
+ggsave("/path/to/plots/tissueshared_chromhmm_plot.pdf", alltissue_chromhmm_plot, width=6, height=4.5)
+```
+
+
+## Figure 4H: tissue-dependent sites
+```{r}
+### Assign regulatory regions -----------------
+## Load output from bedtools intersect
+
+temp <- intersect(list.files(path = "/path/to/annotations/results/",
+                             pattern="allELA*"),
+                  list.files(path = "/path/to/annotations/results/",
+                             pattern="*chromHMMannotation.bed"))
+
+# read in files into a list
+regionFiles = lapply(temp, function(x){
+  tmp <- read.delim(file = paste0("/path/to/annotations/results/", x),
+                    sep = '\t', header = F) 
+  tmp <- tmp %>%
+    mutate(cpgsite = paste(V1,V2,V3, sep="_"))
+  return(tmp)
+})
+names(regionFiles) <- gsub(c(temp), pattern = ".bed", replacement = "")
+rm(temp)
+
+all_site_bed<-read.table("/path/to/mashr_results/allELA_onlycpgs.bed", h=F)
+all_sites <- all_site_bed[, c("V1", "V2", "V3")] %>%
+  mutate(cpgsite = paste(V1,V2, V3, sep="_"))
+
+result_list <- list()
+
+tissues_10<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at',  'thymus', 'whole_blood')
+  
+for (tissue in tissues_10) {
+
+  # Add blank columns for each region type and then add 1's where the site is in that region 
+reg_regions <- c("1_TssA", "2_TssAFlnk", "3_TxFlnk", "4_Tx", "5_TxWk", "6_EnhG", "7_Enh", "8_ZNF/Rpts", "9_Het", "10_TssBiv", "11_BivFlnk", "12_EnhBiv", "13_ReprPC", "14_ReprPCWk", "15_Quies")
+for (k in c(reg_regions)) { # make new column for each regulatory region, fill with 0
+  all_sites[, paste0(k)] <- 0
+}
+
+  for(r in c(reg_regions)){
+    
+  # Fill with 1 if site has a specific annotation in the region
+    selected_df_name <- names(regionFiles)[grepl(tissue, names(regionFiles))]
+tissue_file<-regionFiles[[selected_df_name]]
+annotation_sites<-subset(tissue_file, V8 == r)
+all_sites[all_sites$cpgsite %in% annotation_sites$cpgsite, r] <- 1
+  }
+
+
+sharedsites_perELA<-data.frame()
+
+  ELAlist <- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+  
+for (ELA in ELAlist){
+  
+  ELAresults<-read.table(gsub("000", ELA, "/path/to/mashr_results/000_sharing.txt"), h=T) %>%
+  separate(region, c("Region", "chr", "start", "end")) %>%
+  mutate(newchr= paste0("chr", chr)) %>%
+  mutate(region= paste(newchr, start, end, sep="_")) %>%
+    filter(within2_v2 < 11)
+  
+tissue_ELA<- ELAresults %>%
+  filter(str_detect(focal_tissue, tissue) | str_detect(tissues_within2, tissue)) %>%
+  mutate(ELA = ELA) %>%
+  mutate(test_tissue = tissue)
+
+sharedsites_perELA<-rbind(sharedsites_perELA, tissue_ELA)
+
+} 
+  
+uniqueELAregions<-unique(sharedsites_perELA$region)
+
+matchregion_cpg<- read.table('/path/to/regions_to_cpgs_mapping.bed') %>%
+  mutate(region=paste(V1, V2, V3, sep="_"))
+sigcpgs<-subset(matchregion_cpg, region %in% uniqueELAregions) %>%
+  dplyr::select(c(V4,V5,V6)) %>%
+  mutate(cpgsite= paste(V4,V5,V6, sep="_"))
+
+all_sites[,"sig"] <- 0
+all_sites[all_sites$cpgsite %in% sigcpgs$cpgsite,"sig"] <- 1
+
+result_list[[tissue]]<-all_sites
+}  
+  
+# fishers test
+
+pvalue_df <- as.data.frame(matrix(NA, nrow = 15, ncol = 10))
+rownames(pvalue_df) <- reg_regions
+colnames(pvalue_df) <- tissues_10
+
+OR_df <- as.data.frame(matrix(NA, nrow = 15, ncol = 10))
+rownames(OR_df) <- reg_regions
+colnames(OR_df) <- tissues_10
+
+for(tissue in tissues_10){
+  for(r in c(reg_regions)){
+      selected_df_name <- names(result_list)[grepl(tissue, names(result_list))]
+      tissue_file<-result_list[[selected_df_name]]
+    FT<-fisher.test(table(tissue_file[,r], tissue_file$sig))
+    pvalue_df[r,tissue]<- FT$p.value
+    OR_df[r,tissue] <- FT$estimate[[1]]
+  }
+}
+
+colnames(pvalue_df)<- colnames(OR_df)<- c("liver", "lung", "kidney",  "spleen", "heart", "adrenal", "skeletal_muscle", "omental_at", "thymus", "whole_blood")
+
+write.table(pvalue_df, 'allELA_tissueNonShared_chromHMMenrichment_pvalues.txt',quote=F,sep='\t')
+write.table(OR_df, 'allELA_tissueNonShared_chromHMMenrichment_oddsratio.txt',quote=F,sep='\t')
+
+OR_df$annotation<-rownames(OR_df)
+
+longOR<-pivot_longer(OR_df, cols= colnames(OR_df)[1:10], values_to= "OR", names_to= "tissue")
+
+pvalue_df$annotation<-rownames(pvalue_df)
+
+longpvalue<-pivot_longer(pvalue_df, cols= c("liver", "adrenal", "lung", "heart", "kidney", "spleen", "omental adipose", "skeletal muscle", "thymus", "whole blood"), values_to="pvalue", names_to="tissue")
+
+plot_data<-merge(longOR, longpvalue)
+plot_data$padjust<- p.adjust(plot_data$pvalue, method="BH")
+plot_data <- plot_data %>%
+  mutate(significant= ifelse(padjust < 0.1, "Y", "N"))
+
+plot_data$annotation_f = factor(plot_data$annotation, levels=c("1_TssA", "2_TssAFlnk", "3_TxFlnk", "4_Tx", "5_TxWk", "6_EnhG", "7_Enh", "8_ZNF/Rpts", "9_Het", "10_TssBiv", "11_BivFlnk", "12_EnhBiv", "13_ReprPC", "14_ReprPCWk", "15_Quies"), labels=c("Active TSS","Flanking Active TSS","Transcr. at gene 5' and 3'", "Strong transcription", "Weak transcription", "Genic enhancers",  "Enhancers", "ZNP genes & repeats", "Heterochromatin", "Bivalent/Poised TSS", "Flanking Bivalent TSS/Enh", "Bivalent Enhancer", "Repressed PolyComb", "Weak Repressed PolyComb", "Quiescent"))
+
+plot_data$tissue = factor(plot_data$tissue)
+
+alltissue_chromhmm_plot<- ggplot(data=plot_data, aes(x=annotation_f, y=log2(OR), fill=tissue, group=tissue)) +
+  geom_line(aes(color=tissue), size=0.8) +
+  geom_point(aes(alpha=significant), size=3, pch=21, color="black") +
+  scale_alpha_manual(values = c("Y" = 1, "N" = 0.2), guide = guide_legend(nrow = 2)) +
+  scale_fill_manual(values= chromHMM_plot_colors, guide = guide_legend(nrow = 2)) +
+  scale_color_manual(values= chromHMM_plot_colors, guide = guide_legend(nrow = 2)) +
+  theme_bw() +
+  geom_hline(yintercept=0, linetype="dashed") +
+  ylab("log2-transformed odds ratio") +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=12, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="bottom") +
+  xlab(""); alltissue_chromhmm_plot
+
+ggsave("/path/to/plots/tissuedependent_chromhmm_plot.pdf", alltissue_chromhmm_plot, width=6, height=4.5)
+```
+
+
+#Make long format results: Table S13
+```{r}
+pvalue_df <- read.table("allELA_tissueshared_chromHMMenrichment_pvalues.txt")
+pvalue_df$annotation <- rownames(pvalue_df)
+pvalue_long<-pivot_longer(pvalue_df, col=1:10, names_to="tissue", values_to="pvalue")
+
+OR_df <-read.table("allELA_tissueshared_chromHMMenrichment_oddsratio.txt")
+OR_df$annotation <- rownames(OR_df)
+OR_long<-pivot_longer(OR_df, col=1:10, names_to="tissue", values_to="OR")
+
+Tissue_shared_chromHMM_results<-merge(OR_long, pvalue_long)
+Tissue_shared_chromHMM_results$FDR<- p.adjust(Tissue_shared_chromHMM_results$pvalue, method="BH")
+Tissue_shared_chromHMM_results$ELA_effect<-"Tissue-shared"
+
+pvalue_df <- read.table("allELA_tissueNonShared_chromHMMenrichment_pvalues.txt")
+pvalue_df$annotation <- rownames(pvalue_df)
+pvalue_long<-pivot_longer(pvalue_df, col=1:10, names_to="tissue", values_to="pvalue")
+
+OR_df <-read.table("allELA_tissueNonShared_chromHMMenrichment_oddsratio.txt")
+OR_df$annotation <- rownames(OR_df)
+OR_long<-pivot_longer(OR_df, col=1:10, names_to="tissue", values_to="OR")
+
+Tissue_dep_chromHMM_results<-merge(OR_long, pvalue_long)
+Tissue_dep_chromHMM_results$FDR<- p.adjust(Tissue_dep_chromHMM_results$pvalue, method="BH")
+Tissue_dep_chromHMM_results$ELA_effect<-"Tissue-dependent"
+
+ELA_chromHMM_results<-rbind(Tissue_shared_chromHMM_results, Tissue_dep_chromHMM_results)
+write.table(ELA_chromHMM_results, "/path/to/ELA_chromHMM_results.txt", quote=F, col.names=T, row.names=F, sep="\t")
+```
+
+
+###########################################################################
+## How do cell lifespan and biological system predict ELA effect size ?? ##
+###########################################################################
+
+```{r}
+library(jtools)
+```
+
+```{r}
+ELAlist <- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+
+result_df<-matrix(NA, ncol=5)
+colnames(result_df)<- c("tissue","beta","lifespan","ELAvar", "system")
+
+for(ELA in ELAlist){
+  
+  pm_allsites<-read.table(gsub("XXX", ELA, '/path/to/mashr_results/XXX_pm_mashr_12tissues.txt'), h=T)
+  
+sigsites<- read.table(gsub("XXX", ELA, '/path/to/mashr_results/XXX_sharing.txt'), h=T)
+unique_sites<-subset(sigsites, within2_v2 == 0 & sig_tissues ==1)
+
+pm_sigsites<-pm_allsites[unique_sites$id,]
+colnames(pm_sigsites)<- c("liver", "omental adipose", "spleen", "kidney", "lung", "heart", "skeletal muscle", "adrenal", "thyroid", "thymus", "pituitary", "whole blood")
+
+pm_sites_long<-pivot_longer(pm_sigsites, 1:12, names_to="tissue", values_to="beta")
+
+shortlived<-c("spleen", "thymus", "adrenal", "whole blood")
+longlived<-c("heart", "pituitary", "skeletal muscle", "liver", "lung", "omental adipose", "thyroid", "kidney")
+immune<-c("spleen", "thymus", "whole blood")
+endocrine<-c("pituitary", "thyroid", "adrenal")
+metabolic<-c("liver", "skeletal muscle", "omental adipose")
+other<-c("heart", "lung", "kidney")
+
+pm_sites_long_cat<-pm_sites_long %>%
+  mutate(lifespan = ifelse(tissue %in% shortlived, "short", "long")) %>%
+  mutate(ELAvar = ELA) %>%
+  mutate(system = ifelse(tissue %in% immune, "immune", ifelse(tissue %in% endocrine, "endocrine", ifelse(tissue %in% metabolic, "metabolic", "other"))))
+
+result_df<-rbind(result_df, pm_sites_long_cat)
+
+}
+
+result_df<-result_df[-1,]
+
+result_df$system <- factor(result_df$system , levels = c("metabolic", "endocrine", "immune","other"))
+result_df$lifespan <- factor(result_df$lifespan , levels = c("long", "short"))
+result_df$ELAvar <- factor(result_df$ELAvar)
+result_df$ELAvar <- relevel(result_df$ELAvar, ref="MomAllLossType")
+
+mod<-lm(abs(beta) ~ lifespan + ELAvar + system, data=result_df)
+summary(mod)
+```
+
+#Figure S13
+```{r}
+short_v_long_plot<-effect_plot(mod, data=result_df, pred=lifespan, line.colors="black", interval=TRUE, int.width=0.1, cat.pred.point.size=2, cat.interval.geom="errorbar") +
+  ylab("Effect size (absolute value)") +
+  xlab("\nCell lifespan") +
+  theme_bw() +
+  theme(axis.text=element_text(size=12, color="black"), axis.title=element_text(size=14)); short_v_long_plot
+
+ggsave("/path/to/plots/short_v_long_plot.pdf", short_v_long_plot, width=3, height=3)
+```
+
+#Figure S14
+```{r}
+system_plot<- effect_plot(mod, data=result_df, pred=system, line.colors="black", plot.points=FALSE, cat.pred.point.size=2, cat.interval.geom="errorbar") +
+  ylab("Effect size (absolute value)") +
+  xlab("\nBiological system") +
+  theme_bw() +
+  theme(axis.text=element_text(size=12, color="black"), axis.title=element_text(size=14)); system_plot
+
+ggsave("/path/to/plots/system_plot.pdf", system_plot, width=5, height=3)
+```
+
+
+
+##############################
+### Age deviation analyses ###
+##############################
+
+```{r}
+library(lmerTest)
+library(jtools)
+library(tidyverse)
+```
+
+#upload age deviations and filter for adults
+```{r}
+agedev<-read.table("/path/to/Cayo_clocks/DNAm_deviation_data.txt", sep="\t", header=T) %>%
+  filter(monkey_id != "22H") %>%
+  mutate(AnimalID.text= paste("'", monkey_id, sep="")) 
+```
+
+#match with ELA data
+```{r}
+ELA_data = read.csv("/path/to/ELA_data/ELA_multitissueDNAm.csv")
+```
+
+```{r}
+agedev_ELA<-merge(agedev, ELA_data, by="AnimalID.text")
+```
+
+#remove ovaries and testis
+```{r}
+agedev_ELA_sub<-subset(agedev_ELA, tissue != "ovaries" & tissue != "testis")
+```
+
+#modeling
+```{r}
+mod1_results_df<-data.frame(row.names=c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub"))
+
+anova_results_df<-data.frame(row.names=c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub"))
+
+ELAvariables<- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+
+for(ELA in ELAvariables){
+  
+  agedevmodeldf<-agedev_ELA_sub %>%
+    filter(!is.na(.data[[ELA]]))
+ 
+  formula1 <- as.formula(paste("Residual_adult ~ ", ELA, "+ tissue + Sex + chronological_age + (1|AnimalID.text)"))
+   mod1<- lmer(formula1, data=agedevmodeldf)
+   mod1_summary<-summary(mod1); mod1_summary
+  
+ formula2 <- as.formula(paste("Residual_adult ~ tissue:", ELA, "+ tissue + Sex + chronological_age + (1|AnimalID.text)"))
+  mod2<-lmer(formula2, data=agedevmodeldf)
+ mod2_summary<-coefficients(summary(mod2)); mod2_summary
+ mod2_interactions <- mod2_summary[grep(":", rownames(mod2_summary)), ]
+ assign(paste0(ELA, "_mod2interactions"), mod2_interactions)
+ 
+   Anova<-anova(mod1, mod2, test="Chisq");Anova
+
+   
+   #if anova is significant, look whether the sig interaction tissue is just an exacerbated effect that is in the same direction as the other tissues (MomLoss & pituitary)
+   #if anova is not significant, look at additive model, if that is significant then effect goes in same direction across tissues
+ 
+ mod1_results_df[ELA, "coef"]<-mod1_summary$coefficients[2,1] 
+ mod1_results_df[ELA, "SE"]<-mod1_summary$coefficients[2,2]
+  mod1_results_df[ELA, "pvalue"]<-mod1_summary$coefficients[2,5] 
+  
+  anova_results_df[ELA, "pvalue"]<-Anova[2,"Pr(>Chisq)"]
+}
+
+
+mod1_results_df$padj<-p.adjust(mod1_results_df$pvalue, method="BH")
+adults_modresults<-mod1_results_df
+anova_results_df$padj<-p.adjust(anova_results_df$pvalue, method="BH")
+adults_anova<-anova_results_df
+```
+
+#Figure 5A
+```{r}
+mod1_results_df$ELA<-rownames(mod1_results_df)
+mod1_results_df$xmin<- mod1_results_df$coef - 1.96 * mod1_results_df$SE
+mod1_results_df$xmax<- mod1_results_df$coef + 1.96* mod1_results_df$SE
+
+#mod1_results_df$ELA_f <- factor(mod1_results_df$ELA, levels = rev(c("MomLoss_norm", "RankIndex_norm", "Kin_norm", "Group_norm", "Primp_norm", "Sibling_norm", "CumlIndex_norm")), labels=rev(c("Maternal Loss", "Maternal Rank", "Kin network size", "Group size", "Primiparity", "Competing Sibling", "Cumulative Adversity")))
+
+mod1_results_df$ELA_f <- factor(mod1_results_df$ELA, levels = rev(c("MomAllLossType","PrimpIndex", "CompetingSibIndex",  "q_kinBirth_sub", "q_grp_sub", "RankIndex01","CumlQuartIndex6_4_sub")), labels=rev(c("Maternal Loss", "Primiparity",  "Competing Sibling",  "Kin network size", "Group size", "Maternal Rank", "Cumulative Adversity")))
+
+Alltissues_agedev_forrestplot<-ggplot(data=mod1_results_df, aes(x=coef, y=ELA_f)) +
+  geom_point() +
+  geom_vline(xintercept=0, linetype="dashed") +
+  geom_errorbar(aes(xmin= xmin, xmax=xmax), width=0.5, color="black") +
+  theme_bw(14) +
+  xlab("Effect size") +
+  ylab(NULL) +
+  theme(axis.text.y=element_text(color="black"), axis.title=element_text(color="black")); Alltissues_agedev_forrestplot
+
+ggsave("/path/to/plots/Alltissues_agedev_forrestplot.pdf", Alltissues_agedev_forrestplot, width=4.5, height=3)
+
+```
+
+### In each tissue separately: Figure S15
+```{r}
+results_list<-list()
+
+tissue_oi<-c("liver", "omental fat", "spleen", "kidney", "lung", "heart", "skeletal muscle", "adrenal", "pituitary", "thymus", "thyroid", "blood")
+
+for(i in tissue_oi){
+  
+  agedev_ELA_subset <- subset(agedev_ELA_sub, tissue == i)
+
+results_df<-data.frame(row.names=c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub"))
+
+ELAvariables<- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+
+for(ELA in ELAvariables){
+  formula <- as.formula(paste("Residual_adult ~", ELA, "+ Sex + chronological_age"))
+  mod<-lm(formula, data=agedev_ELA_subset)
+ mod_summary<-summary(mod);mod_summary
+ 
+ results_df[ELA, "coef"]<-mod_summary$coefficients[2,1] 
+ results_df[ELA, "SE"]<-mod_summary$coefficients[2,2]
+  results_df[ELA, "pvalue"]<-mod_summary$coefficients[2,4] 
+  results_df[,"tissue"]<-i
+  results_df[,"adj.pvalue"]<-p.adjust(results_df$pvalue, method="BH")
+  results_df[ELA,"ELA"]<-ELA
+  }
+
+results_list[[i]]<-results_df
+}
+
+alltissues<-do.call(rbind, results_list)
+
+# 1 falls below adj p < 0.05
+#Maternal loss in pituitary
+
+plot_list<-list()
+
+ELAlist=c("Maternal Loss", "Primiparity", "Competing Sibling","Kin network size", "Group size", "Maternal Rank","Cumulative Adversity")
+
+alltissues$ELA_f <- factor(alltissues$ELA, levels = rev(c("MomAllLossType","PrimpIndex", "CompetingSibIndex",  "q_kinBirth_sub", "q_grp_sub", "RankIndex01","CumlQuartIndex6_4_sub")), labels=rev(c("Maternal Loss", "Primiparity",  "Competing Sibling",  "Kin network size", "Group size", "Maternal Rank", "Cumulative Adversity")))
+
+alltissues$ymin<- alltissues$coef - 1.96 * alltissues$SE
+alltissues$ymax<- alltissues$coef + 1.96* alltissues$SE
+
+for (ELAname in ELAlist){
+  
+ML_alltissues<-subset(alltissues, ELA_f == ELAname) %>%
+  mutate(system= ifelse(tissue == "whole blood" | tissue == "spleen" | tissue == "thymus", "immune", ifelse(tissue == "pituitary" | tissue == "thyroid" | tissue == "adrenal", "endocrine", ifelse(tissue == "omental adipose" | tissue == "liver" | tissue == "skeletal muscle", "metabolic", "other"))))
+
+system_plot <- sort(c("endocrine", "immune", "metabolic", "other"))
+system_palette <- setNames(c("#942193", "#005493", "#FF9300", "#009051"), system_plot)
+
+plot_list[[ELAname]]<-ggplot(data=ML_alltissues, aes(y=coef, x = reorder(tissue, -coef), color=system)) +
+  geom_point(size=2) +
+  geom_hline(yintercept=0, linetype = "dashed") +
+  geom_errorbar(aes(ymin= ymin, ymax=ymax), width=0, linewidth=1) +
+  theme_minimal(12) +
+  theme(axis.text.x= element_text(color="black", angle=45, hjust=1, vjust=1, size=12), plot.title=element_text(hjust=0.5)) +
+  scale_color_manual(values=system_palette) +
+  ylab("effect of ELA on age acceleration") +
+  xlab("") +
+  ggtitle(ELAname)
+}
+
+print(plot_list[1:7])
+
+library(ggpubr)
+allELA_alltissue_agedev<-ggarrange(plotlist=plot_list[1:7], nrow=3, ncol=3, common.legend=T); allELA_alltissue_agedev
+ggsave("/path/to/plots/Ageaccel_allELAs_systems.pdf", allELA_alltissue_agedev, width=12, height=12)
+```
+
+
+#Figure 5B: Are regions associated with age more likely to also be associated with adversity?? Yes
+```{r}
+age_results<-readRDS("/path/to/MASH/bedfiles/tissue_age_associated_sites_list.rds")
+combined_df <- do.call(rbind, age_results)
+
+matchregion_cpg<- read.table("/path/to/regions_to_cpgs_mapping.bed") %>%
+  mutate(chr=gsub("chr", "", V1)) %>%
+  mutate(region= paste("Region", chr, V2, V3, sep="_")) %>%
+  mutate(CpGsite= paste(V4, V5, V6, sep="_"))
+age_sites<-merge(combined_df, matchregion_cpg, by="region") 
+
+Sigsites_location_QuartELA <- readRDS("/path/to/Sigsites_location_QuartELA.rds")
+```
+
+```{r}
+ELA_result <- Sigsites_location_QuartELA %>%
+  dplyr::select(region, sig_which_tissues, ELA, CpGsite) %>%
+  mutate(new= strsplit(sig_which_tissues, ",")) %>%
+  unnest(new) %>%
+  distinct()
+
+ELAlist <- c("MomAllLossType", "RankIndex01", "q_kinBirth_sub", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
+
+tissue_oi<-c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thyroid", "thymus", "whole_blood")
+
+fisher_result<-data.frame(row.names=tissue_oi)
+plot_list<-list()
+allELAs_result<-data.frame()
+
+for (ELAname in ELAlist){
+  
+  for (tissuename in tissue_oi){
+  
+  all_sites <- read.table(gsub("XXX", ELAname, "/path/to/mashr_results/XXX_allsites.txt"))
+  tissue_age<-subset(age_sites, tissue == tissuename)
+  tissue_age<-as.data.frame(tissue_age)
+  tissue_ELA<-subset(ELA_result, ELA == ELAname & new == tissuename)
+  
+  # Add blank columns for each region type and then add 1's where the site is in that region 
+result_type <- c("age", "ELA")
+for (i in c(result_type)) { # make new column for each dataset, fill with 0
+  all_sites[, paste0(i)] <- 0
+}
+
+# Fill with 1 if site is associated with age/ ELA
+
+all_sites[all_sites$x %in% tissue_age$region,]$age <- 1
+all_sites[all_sites$x %in% tissue_ELA$region,]$ELA <- 1
+age_ELA_enrich<-fisher.test(table(all_sites$age, all_sites$ELA))
+fisher_result[paste0(tissuename), "OR"]<- age_ELA_enrich$estimate
+fisher_result[paste0(tissuename), "conf.low"]<- age_ELA_enrich$conf.int[1]
+fisher_result[paste0(tissuename), "conf.high"]<- age_ELA_enrich$conf.int[2]
+fisher_result[paste0(tissuename), "pvalue"]<- age_ELA_enrich$p.value
+fisher_result[paste0(tissuename), "nobs"]<- nrow(all_sites)
+  }
+  
+  fisher_result$tissue <- rownames(fisher_result)
+  fisher_result<- fisher_result %>%
+    mutate(padjust = p.adjust(pvalue, method="BH")) %>%
+    mutate(pvalueYN = ifelse(padjust < 0.1, "Y", "N")) %>%
+    mutate(pvalueYNfactor = factor(pvalueYN, levels=c("Y", "N")))
+  fisher_result$ELA<-ELAname
+  allELAs_result<-rbind(allELAs_result, fisher_result)
+}
+
+allELAs_result$ELA_f = factor(allELAs_result$ELA, levels=c("MomAllLossType", "PrimpIndex", "CompetingSibIndex", "q_kinBirth_sub", "q_grp_sub", "RankIndex01", "CumlQuartIndex6_4_sub"), labels=c("Maternal loss","Primiparity","Competing sibling", "Kin network size", "Group size", "Maternal rank",  "Cumulative adveristy"))
+
+allELAs_result$tissue<-gsub("omental_at", "omental adipose", allELAs_result$tissue)
+allELAs_result$tissue<-gsub("skeletal_muscle", "skeletal muscle", allELAs_result$tissue)
+allELAs_result$tissue<-gsub("whole_blood", "whole blood", allELAs_result$tissue)
+
+allELAs_result <- allELAs_result %>%
+  mutate(padjust=p.adjust(pvalue, method="BH")) %>%
+    mutate(pvalueYN = ifelse(padjust < 0.1, "Y", "N")) %>%
+    mutate(pvalueYNfactor = factor(pvalueYN, levels=c("Y", "N")))
+  
+agevELA_overlapOR<- ggplot(data=allELAs_result, aes(x=ELA_f, y=log2(OR), fill=tissue, group=tissue)) +
+  geom_point(aes(alpha=pvalueYN),size=3, shape=21, color="black") +
+  geom_line(aes(color=tissue), size=0.8) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  ylab("log2-transformed odd's ratio")+
+  xlab("")+
+  theme_bw(12) +
+    theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=14, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="bottom") +
+  scale_alpha_manual(values = c("Y" = 1, "N" = 0.2), guide = guide_legend(nrow = 2)) +
+  scale_fill_manual(values= extended_palette, guide = guide_legend(nrow = 1)) +
+  scale_color_manual(values= extended_palette, guide = guide_legend(nrow = 1));agevELA_overlapOR
+
+ggsave("/path/tp/plots/agevELA_overlapOR.pdf", agevELA_overlapOR, width=5, height=4.5)
+```
+
+#Table S18
+```{r}
+allELAs_result_table<- allELAs_result %>%
+  select(tissue, ELA_f, OR, conf.high, conf.low, pvalue, padjust, nobs)
+write.table(allELAs_result_table, "/path/to/SItables/agevELA_overlap_results.txt", quote=F, row.names=F, col.names=T, sep="\t")
+```
+
+
+#Figure 5C: Fisher test for direction of effects for sig age and sig ELA (maternal loss) sites
+```{r}
+age_results<-readRDS("/path/MASH/bedfiles/tissue_age_associated_sites_list.rds")
+combined_df <- do.call(rbind, age_results)
+
+all_sites <- read.table("/path/to/mashr_results/MomAllLossType_allsites.txt")
+pm<- read.table("/path/to/mashr_results/MomAllLossType_pm_mashr_12tissues.txt", h=T)
+colnames(pm)<-c('liver','lung', 'kidney', 'spleen', 'heart', 'adrenal', 'skeletal_muscle', 'omental_at', 'thyroid', 'thymus', 'pituitary', 'whole_blood')
+rownames(pm)<- all_sites$x
+
+ELA_result <- Sigsites_location_QuartELA %>%
+  dplyr::select(region, sig_which_tissues, ELA) %>%
+  mutate(new= strsplit(sig_which_tissues, ",")) %>%
+  unnest(new) %>%
+  distinct()
+
+fisher_result<-data.frame(row.names=tissue_oi)
+
+for (tissuename in tissue_oi){
+
+tissue_age<-subset(combined_df, tissue == tissuename)
+rownames(tissue_age)<-tissue_age$region
+tissue_ELA<-subset(ELA_result, new == tissuename)
+tissue_ELAbetas<-pm[tissue_ELA$region,]
+age_ELA_merge<-merge(tissue_age, tissue_ELAbetas, by="row.names")
+colnames(age_ELA_merge)[colnames(age_ELA_merge) == tissuename] <- "ELA_beta"
+
+sigboth_sites_binary<-age_ELA_merge %>%
+  mutate(age_pos= ifelse(beta > 0, 1, 0)) %>%
+  mutate(ELA_pos = ifelse(ELA_beta > 0, 1, 0))
+
+age_ELA_enrich<-fisher.test(table(sigboth_sites_binary$age_pos, sigboth_sites_binary$ELA_pos))
+fisher_result[paste0(tissuename), "OR"]<- age_ELA_enrich$estimate
+fisher_result[paste0(tissuename), "conf.low"]<- age_ELA_enrich$conf.int[1]
+fisher_result[paste0(tissuename), "conf.high"]<- age_ELA_enrich$conf.int[2]
+fisher_result[paste0(tissuename), "pvalue"]<- age_ELA_enrich$p.value
+fisher_result[paste0(tissuename), "nobs"]<- nrow(sigboth_sites_binary)
+}
+  
+
+fisher_result$tissue <- rownames(fisher_result)
+  fisher_result<- fisher_result %>%
+    mutate(padjust = p.adjust(pvalue, method="BH")) %>%
+    mutate(significant = ifelse(padjust < 0.1, "Y", "N")) %>%
+    mutate(significant_factor= factor(significant, levels=c("Y", "N")))
+  
+      fisher_result$tissue_f = factor(fisher_result$tissue, levels=c("adrenal", "heart", "kidney", "liver", "lung", "omental_at", "pituitary", "skeletal_muscle", "spleen", "thymus", "thyroid", "whole_blood"), labels=c("adrenal", "heart", "kidney", "liver", "lung", "omental adipose", "pituitary", "skeletal muscle", "spleen", "thymus", "thyroid", "whole blood"))
+  
+Direction_change_enrichplot<-ggplot(data=fisher_result, aes(x=tissue_f, y=log2(OR), alpha=significant)) +
+    geom_point() +
+    geom_hline(yintercept=0, linetype="dashed") +
+    geom_errorbar(aes(x=tissue_f, ymin=log2(conf.low), ymax=log2(conf.high))) +
+  #geom_text(aes(label=nobs, x=tissue, y=log2(conf.high) + 0.2)) +
+    theme_bw(14) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=14, color="black"), axis.text.y=element_text(size=14, color="black"), legend.position="none") +
+  scale_alpha_manual(values=c(0.3, 1))+
+  xlab(NULL) +
+  ylab("log2-transformed odd's ratio"); Direction_change_enrichplot
+
+ggsave("/path/to/plots/Direction_change_enrichplot.pdf", Direction_change_enrichplot, width=5, height=4.5)
+```
+
+#Table S19
+```{r}
+sitable_19<-fisher_result %>%
+  dplyr::select(c(tissue, OR, conf.high, conf.low, pvalue, padjust, nobs))
+write.table(sitable_19, "/path/to/SItables/agevELA_direction_results.txt", quote=F, row.names=F, sep="\t")
+```

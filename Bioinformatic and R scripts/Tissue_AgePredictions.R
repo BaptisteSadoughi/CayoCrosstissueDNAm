@@ -18,7 +18,7 @@ maturity <- 5 #set age at maturity for non-linear relationship
 #---------------------------------------------------------------------
 # LOAD METHYLATION DATA AND METADATA
 #---------------------------------------------------------------------
-file_name<-("/scratch/sbaptis7/Cayotissue_CpG_coverage/combined_CpG_Regions/full_matrices/Regions_full_pmeth14.rds")
+file_name<-("/path/to/full_matrices/Regions_full_pmeth14.rds")
 
 # Read in data
 pmeth <- readRDS(file_name)
@@ -30,7 +30,7 @@ pmeth$skeletal_muscle <- pmeth$skeletal_muscle[,-which(colnames(pmeth$skeletal_m
 pmeth <- lapply(pmeth,function(x) x[!grepl("Region_X|CpG_X",rownames(x)), ,drop = FALSE])
 
 # Read in metadata info with known chronological ages/sex and technical variables.
-metadata_lid = read.table("/scratch/sbaptis7/Cayo_meth_metadata/metadata_final_lidpids_Nov24.txt", sep = "\t", header = TRUE) %>% filter(lid_pid !="LID_109490_PID_10416")
+metadata_lid = read.table("/path/to/metadata_final.txt", sep = "\t", header = TRUE) %>% filter(lid_pid !="LID_109490_PID_10416")
 
 # Simplify metadata for glmnet
 meta <- meta %>% dplyr::select(lid_pid,age_at_sampling,monkey_id,grantparent_tissueType)
@@ -147,4 +147,3 @@ parallel::mclapply(tissues,function(tissue){
     write.table(predicted_out, paste0(path_p,"/AgePred_",nrow(meta_s),"_alpha", alph,"_", tissue, SAMP, ".txt"), quote = F, row.names = F, col.names = F)
     }
   }, mc.cores = num_cores)
-##################################################################

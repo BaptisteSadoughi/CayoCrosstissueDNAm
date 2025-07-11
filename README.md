@@ -60,7 +60,7 @@ install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid
 
 ## Processing of fastq files
 
-This pipeline script (`mapping_and_methylation.sh`) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
+This pipeline script [`mapping_and_methylation.sh`](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/fastq_processing.sh) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
 
 ---
 
@@ -69,10 +69,10 @@ This pipeline script (`mapping_and_methylation.sh`) performs read trimming, alig
 Before running the script, please prepare the following:
 
 1. Create a central directory to hold data and outputs:  
-   /base_path/
+   `base_path/`
 
 2. Download raw FASTQ files into a subdirectory:
-   /base_path/fastq/
+   `base_path/fastq/`
 
 3. Inside the `base_path/fastq/` directory, create a plain text file named `lids` that lists all sample IDs (one per line).  
    These sample IDs should correspond exactly to the prefixes of the FASTQ files.  

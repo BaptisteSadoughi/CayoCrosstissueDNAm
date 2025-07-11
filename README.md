@@ -58,13 +58,13 @@ install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid
 ))
 ```
 
-**### Processing of fastq files**
+## Processing of fastq files
 
 This pipeline script (`mapping_and_methylation.sh`) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
 
 ---
 
-## Prerequisites and Setup
+### Prerequisites and Setup
 
 Before running the script, please prepare the following:
 

@@ -123,14 +123,7 @@ saveRDS(mash_results, "/path/to/MASH/mash_estimates.RDS")
 # Direction of change according to average percent methylation levels
 #
 #############################################################################
-
-# This script loads result of mash_analysis.R
-# The aim is to assess the relationship between region intercept value and direction of age-related change. 
-
-# Created 18/11/2024 by Baptiste Sadoughi
-
-rm(list = ls())
-
+rm(list=ls())
 library_list <- c("ashr", "mashr", "flashier", "corrplot","svglite","tidyverse","MatrixGenerics")
 lapply(library_list, require, character.only=TRUE)
 
@@ -139,11 +132,11 @@ tissue_oi <- c("whole_blood","spleen","omental_at","heart","testis","ovaries","k
 #----------------------------------------------------------
 # INSPECTING AND PLOTTING RESULTS
 #----------------------------------------------------------
-mash_results <- readRDS("/scratch/sbaptis7/MASH/mash_estimates_June25.RDS")
-m.all <- readRDS("/scratch/sbaptis7/MASH/mash_object_June25.RDS")
+mash_results <- readRDS("/path/to/MASH/mash_estimates_June25.RDS")
+m.all <- readRDS("/path/to/MASH/mash_object_June25.RDS")
 
 # Load metadata
-metadata_lid = read.table("/scratch/sbaptis7/Cayo_meth_metadata/metadata_final_lidpids_Nov24.txt", sep = "\t", header = TRUE)
+metadata_lid = read.table("/path/to/metadata.txt", sep = "\t", header = TRUE)
 metadata_lid = metadata_lid %>% filter(lid_pid != "LID_109490_PID_10416")
 metadata_lid$percent_unique<-metadata_lid$unique/metadata_lid$reads
 
@@ -155,7 +148,7 @@ now <- Sys.time()
 for(tissue in tissue_oi){
   
   # define pattern
-  filename <- gsub("XXX",tissue,"/scratch/sbaptis7/Cayotissue_CpG_coverage/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
+  filename <- gsub("XXX",tissue,"/path/to/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
   
   # load data
   r <- readRDS(filename)
@@ -232,19 +225,15 @@ for(i in tissue_oi[tissue_oi!=c("testis","ovaries")]){
 }
 
 # Export this list which can be useful for many other analysis
-# saveRDS(coeff_intercept_list, "/scratch/sbaptis7/MASH/bedfiles/tissue_age_associated_sites_list_June25.rds") #exported with lfsr<0.05
-# saveRDS(coeff_intercept_list, "/scratch/sbaptis7/MASH/bedfiles/tissue_age_associated_sites_FDR0.1_list_June25.rds") #exported with lfsr<0.1
-
-
+# saveRDS(coeff_intercept_list, "/path/to/MASH/bedfiles/tissue_age_associated_sites_list.rds") #exported with lfsr<0.05
+                                       
 ############################ Test whether sites tend to trend towards 50 with age
 
-coeff_intercept_list=readRDS("/scratch/sbaptis7/MASH/bedfiles/tissue_age_associated_sites_list_June25.rds")
+coeff_intercept_list=readRDS("/path/to/MASH/bedfiles/tissue_age_associated_sites_list.rds")
 
-### IMPORTANT note that the categories for intercept "higher" and "lower" (than 50% pmeth) were defined
-### based on individuals <6 years of age. The idea is to test whether sites starting in early life above or below
-### threshold tend to move towards 50% with advancing age.
-
-# First we apply this on all sites (knowing that many are hypo/hypermethylated in a tissue)
+### NOTE that the categories for intercept "higher" and "lower" (than 50% pmeth) were defined
+### based on individuals <6 years of age to test whether sites starting in early life above or below
+### threshold tend to move towards 50% with advancing age. Results using the average calculated on all individuals are qualitatively the same.
 
 # Fisher's exact test per tissue
 apply_fisher_test <- function(df){
@@ -276,8 +265,7 @@ components <- lapply(test_results_list, extract_components)
 results_tests_df <- do.call(rbind, components)
 results_tests_df$tissue <- rownames(results_tests_df)
 
-
-# Second we repeat the process on variable sites for a given tissue
+# Repeat the process on variable sites for a given tissue to test the robustness of the relationship
 
 # Fisher's exact test per tissue
 apply_fisher_test_variable <- function(df){
@@ -307,17 +295,6 @@ results_tests_df_var <- results_tests_df_var %>%
 results_tests_df_var = results_tests_df_var %>% arrange(tissue)
 rownames(results_tests_df_var)<-NULL
 
-#Export table as image
-library(flextable)
-library(webshot)
-ft <- flextable::flextable(results_tests_df_var)
-# Use system.file() to find the phantomjs executable included with the webshot package
-path_to_phantomjs <- system.file("webshot", "phantomjs", package = "webshot")
-# Set the path to the phantomjs executable
-webshot::install_phantomjs(path_to_phantomjs)
-# Save the flextable as an image
-flextable::save_as_image(ft, path = paste0("/scratch/sbaptis7/MASH/Figures/Fischers_varsites_coeff_interceptyoung.png"))
-
 all_coeff_af <- do.call(rbind,coeff_intercept_list)
 
 cat_young_plot <- ggplot(all_coeff_af %>% mutate(interaction = paste(sign_beta,intercept_high_low_50,"_")) %>% 
@@ -339,8 +316,7 @@ cat_young_plot <- ggplot(all_coeff_af %>% mutate(interaction = paste(sign_beta,i
                    axis.text.y = element_text(size=12, color="black"),
                    strip.text = element_text(size = 12, face = "bold"),
                    strip.background = element_rect(fill = "white"))
-# ggsave("/scratch/sbaptis7/MASH/Figures/Direction_of_agechange_meanYoung_June25.png", width=9.5, height=7.5, dpi=300)
-# ggsave("/scratch/sbaptis7/MASH/Figures/Direction_of_agechange_meanYoung_June25.pdf", width=9.5, height=7.5, dpi=300)
+ggsave("/path/to/MASH/Figures/FigS7.png")
 
 # Pearson's correlation per tissue
 apply_cor_test_variable <- function(df){
@@ -375,18 +351,7 @@ results_corr_df_var <- results_corr_df_var %>%
 results_corr_df_var = results_corr_df_var %>% arrange(tissue)
 
 # write.table(results_corr_df_var %>% rename(`Pearson correlation`=pearson_corr,`p-value`=pvalue),
-#             "/home/sbaptis7/CayoMultitissue_SupMat/Correlation_MeanMeth_AgeChanges_June25.csv",row.names = F,quote = F)
-
-#Export table as image
-library(flextable)
-library(webshot)
-ft <- flextable::flextable(results_corr_df_var)
-# Use system.file() to find the phantomjs executable included with the webshot package
-path_to_phantomjs <- system.file("webshot", "phantomjs", package = "webshot")
-# Set the path to the phantomjs executable
-webshot::install_phantomjs(path_to_phantomjs)
-# Save the flextable as an image
-flextable::save_as_image(ft, path = paste0("/scratch/sbaptis7/MASH/Figures/Pearsons_varsites_coeff_interceptyoung.png"))
+#             "/path/to/TableS6.csv",row.names = F,quote = F)
 
 # Plot the three info: change with age, direction of tissue-specificity, and average pmeth in the population 
 coeff_intercept_list= lapply(names(coeff_intercept_list),function(x) {
@@ -416,7 +381,7 @@ corr_plot<-ggplot(testy %>%
                    axis.text.y = element_text(size=12, color="black"),
                    strip.text = element_text(size = 12, face = "bold"),
                    strip.background = element_rect(fill = "white"))
-# ggsave("/scratch/sbaptis7/MASH/Figures/Correlation_of_agechange_meanYoung.png", width=9.5, height=7.5, dpi=300)
+# ggsave("/path/to/Figures/FigS9.png", width=9.5, height=7.5, dpi=300)
 
 ggpubr::ggarrange(cat_young_plot,corr_plot,nrow=2)
 ggsave("/scratch/sbaptis7/MASH/Figures/Direction_of_agechange_meanYoung_June25.png", width=9.5, height=12.5, dpi=300)

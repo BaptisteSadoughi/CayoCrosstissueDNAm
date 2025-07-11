@@ -5,7 +5,6 @@ Analyses were performed using the Arizona State University SOL supercomputer (DO
 
 All analyses were performed via the command line in a Bash environment, using the Slurm workload manager or through an RStudio interface for R version 4.4.0, with the following R package dependencies:
 
-**Required R packages**
 CRAN packages:
 corrplot
 RColorBrewer
@@ -22,19 +21,5 @@ flashier
 MatrixGenerics
 umap
 
-Bioconductor packages:
-bsseq
-BiocGenerics
-GenomicRanges
-GenomicFeatures
-PQLseq
-qvalue
-methyLImp2
-comethyl
-DelayedMatrixStats
-BiocParallel
-
-External software:
-bedtools (must be installed as a system-level tool or loaded via module)
 
 <pre> ```r # Install BiocManager if not already installed if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager") # Install Bioconductor packages BiocManager::install(c( "bsseq", "BiocGenerics", "GenomicRanges", "GenomicFeatures", "PQLseq", "qvalue", "methyLImp2", "comethyl", "DelayedMatrixStats", "BiocParallel" )) # Install CRAN packages install.packages(c( "corrplot", "RColorBrewer", "pheatmap", "svglite", "ggpubr", "grid", "glmnet", "jtools", "lmerTest", "mashr", "ashr", "flashier", "MatrixGenerics", "umap" )) ``` </pre>

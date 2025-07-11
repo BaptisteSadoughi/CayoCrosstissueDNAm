@@ -60,7 +60,7 @@ install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid
 
 ## Processing of fastq files
 
-This pipeline script [`mapping_and_methylation.sh`](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/fastq_processing.sh) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
+This pipeline script [`fastq_processing.sh`](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/fastq_processing.sh) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
 
 ---
 
@@ -89,7 +89,7 @@ Before running the script, please prepare the following:
    - bedtools  
 
 5. Modify the script to set these paths according to your directory structure:
-   - genome_path: path to the Bismark genome folder for mmul10 (e.g., /path/to/bismark/mmul10/). To generate the Bismark folder, see [tutorial](chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.bioinformatics.babraham.ac.uk/projects/bismark/Bismark_User_Guide.pdf).  
+   - genome_path: path to the Bismark genome folder for mmul10 (e.g., /path/to/bismark/mmul10/). To generate the Bismark folder, see [tutorial](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)  
    - base_path: newly created central directory  
    - PATH: access to the modules
 

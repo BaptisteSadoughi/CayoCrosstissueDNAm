@@ -1,4 +1,4 @@
-monkey_id	lid_pid	reads	unique	perc_chg_meth	perc_chh_meth	sample_name	tissue	individual_sex	group	age	social_rank
+monkey_id	lid_pid	reads	unique	perc_chg_meth	perc_chh_meth	sample_name	tissue	sex	group	age	social_rank
 03Z	LID_108630_PID_10413	31378992	18764116	0.7%	0.5%	RDID_11656	spleen	F	HH	12.78	L
 03Z	LID_109606_PID_10471	23872027	14392253	0.7%	0.5%	RDID_11332	skeletal_muscle	F	HH	12.78	L
 03Z	LID_108522_PID_10414	26837329	15958521	0.7%	0.6%	RDID_10784	liver	F	HH	12.78	L

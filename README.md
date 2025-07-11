@@ -8,45 +8,34 @@ All analyses were performed via the command line in a Bash environment, using th
 **Required R packages**
 
 *CRAN packages:*
-
-corrplot
-RColorBrewer
-pheatmap
-svglite
-ggpubr
-grid
-glmnet
-jtools
-lmerTest
-mashr
-ashr
-flashier
-MatrixGenerics
-umap
-
-markdown
-Copy
-Edit
+- corrplot  
+- RColorBrewer  
+- pheatmap  
+- svglite  
+- ggpubr  
+- grid  
+- glmnet  
+- jtools  
+- lmerTest  
+- mashr  
+- ashr  
+- flashier  
+- MatrixGenerics  
+- umap  
 
 *Bioconductor packages:*
-
-bsseq
-BiocGenerics
-GenomicRanges
-GenomicFeatures
-PQLseq
-qvalue
-methyLImp2
-comethyl
-DelayedMatrixStats
-BiocParallel
-
-php
-Copy
-Edit
+- bsseq  
+- BiocGenerics  
+- GenomicRanges  
+- GenomicFeatures  
+- PQLseq  
+- qvalue  
+- methyLImp2  
+- comethyl  
+- DelayedMatrixStats  
+- BiocParallel  
 
 **External software:**
-
 - bedtools (must be installed as a system-level tool or loaded via module)
 
 ---
@@ -61,33 +50,9 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
 # Install Bioconductor packages
-BiocManager::install(c(
-  "bsseq",
-  "BiocGenerics",
-  "GenomicRanges",
-  "GenomicFeatures",
-  "PQLseq",
-  "qvalue",
-  "methyLImp2",
-  "comethyl",
-  "DelayedMatrixStats",
-  "BiocParallel"
+BiocManager::install(c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures","PQLseq","qvalue","methyLImp2","comethyl","DelayedMatrixStats","BiocParallel"
 ))
 
 # Install CRAN packages
-install.packages(c(
-  "corrplot",
-  "RColorBrewer",
-  "pheatmap",
-  "svglite",
-  "ggpubr",
-  "grid",
-  "glmnet",
-  "jtools",
-  "lmerTest",
-  "mashr",
-  "ashr",
-  "flashier",
-  "MatrixGenerics",
-  "umap"
+install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid","glmnet","jtools","lmerTest","mashr","ashr","flashier","MatrixGenerics","umap"
 ))

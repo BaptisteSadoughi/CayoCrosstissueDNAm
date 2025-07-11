@@ -65,7 +65,7 @@ install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid
 
 ## Processing of fastq files
 
-This pipeline script [`fastq_processing.sh`](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/fastq_processing.sh) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
+This pipeline script [fastq_processing.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/fastq_processing.sh) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
 
 ---
 
@@ -106,7 +106,7 @@ sbatch --cpus-per-task=12 --array=1-N mapping_and_methylation.sh
 
 ## Generating the BSseq data
 
-Process methylation coverage files using [`generate_bsseq.R`](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/generate_bsseq.R) to generate a BSseq object for downstream analysis. A HDF5 backend is used for efficient storage. The resulting BSseq object is saved in the  as `Rhesus_bismarkBSseq.rds` in the base_path directory.
+Process methylation coverage files using [generate_bsseq.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/generate_bsseq.R) to generate a BSseq object for downstream analysis. A HDF5 backend is used for efficient storage. The resulting BSseq object is saved in the  as `Rhesus_bismarkBSseq.rds` in the base_path directory.
 
 ### Prerequisites and Setup:
 Before running the script:
@@ -119,3 +119,7 @@ Before running the script:
 
 ```bash
 sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 /path/to/generate_bsseq.R
+
+## Building genomic regions
+
+CpG density based regions are generated using [Generate_CpG_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Generate_CpG_region_methylation.R). Several path and parameters must be defined at the start of the script. The output are tissue-specific methylation data saved in separate subdirectories. The script requires to source [SupportFunctions_generate_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/SupportFunctions_generate_region_methylation.R) to run helper functions.

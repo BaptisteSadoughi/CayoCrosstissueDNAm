@@ -316,7 +316,6 @@ cat_young_plot <- ggplot(all_coeff_af %>% mutate(interaction = paste(sign_beta,i
                    axis.text.y = element_text(size=12, color="black"),
                    strip.text = element_text(size = 12, face = "bold"),
                    strip.background = element_rect(fill = "white"))
-ggsave("/path/to/MASH/Figures/FigS7.png")
 
 # Pearson's correlation per tissue
 apply_cor_test_variable <- function(df){
@@ -381,8 +380,6 @@ corr_plot<-ggplot(testy %>%
                    axis.text.y = element_text(size=12, color="black"),
                    strip.text = element_text(size = 12, face = "bold"),
                    strip.background = element_rect(fill = "white"))
-# ggsave("/path/to/Figures/FigS9.png", width=9.5, height=7.5, dpi=300)
 
 ggpubr::ggarrange(cat_young_plot,corr_plot,nrow=2)
-ggsave("/scratch/sbaptis7/MASH/Figures/Direction_of_agechange_meanYoung_June25.png", width=9.5, height=12.5, dpi=300)
-ggsave("/scratch/sbaptis7/MASH/Figures/Direction_of_agechange_meanYoung_June25.pdf", width=9.5, height=12.5, dpi=300)
+ggsave("/path/to/Figures/FigS9.png", width=9.5, height=12.5, dpi=300)

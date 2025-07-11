@@ -56,3 +56,48 @@ BiocManager::install(c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures",
 # Install CRAN packages
 install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid","glmnet","jtools","lmerTest","mashr","ashr","flashier","MatrixGenerics","umap"
 ))
+
+**### Processing of fastq files**
+
+This pipeline script (`mapping_and_methylation.sh`) performs read trimming, alignment, and methylation extraction on RRBS data. It is designed to run on HPC clusters with SLURM.
+
+---
+
+## Prerequisites and Setup
+
+Before running the script, please prepare the following:
+
+1. Create a central directory to hold data and outputs:  
+   /base_path/
+
+2. Download raw FASTQ files into a subdirectory:
+   /base_path/fastq/
+
+3. Inside the `base_path/fastq/` directory, create a plain text file named `lids` that lists all sample IDs (one per line).  
+   These sample IDs should correspond exactly to the prefixes of the FASTQ files.  
+   For example, if a FASTQ file is named `LID_106879_PID_15915*R1*.fastq.gz`, the `lids` file should include:  
+   LID_106879_PID_15915
+
+4. Ensure that all required software and tools are installed and available in your system PATH or loaded as modules.  
+   Required tools include:  
+   - bowtie2  
+   - samtools  
+   - cutadapt  
+   - trim_galore  
+   - bismark  
+   - bedtools  
+
+5. Modify the script to set these paths according to your directory structure:
+   - genome_path: path to the Bismark genome folder for mmul10 (e.g., /path/to/bismark/mmul10/). To generate the Bismark folder, see [tutorial](chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.bioinformatics.babraham.ac.uk/projects/bismark/Bismark_User_Guide.pdf).  
+   - base_path: newly created central directory  
+   - PATH: access to the modules
+
+### Running the Script
+
+Submit the script as a Slurm array job, specifying the total number of samples listed in the `lids` file:
+
+sbatch --cpus-per-task=12 --array=1-N mapping_and_methylation.sh
+
+- Replace N with the number of lines (samples) in your `lids` file.  
+
+---

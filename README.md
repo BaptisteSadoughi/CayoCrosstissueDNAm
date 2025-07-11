@@ -55,7 +55,8 @@ BiocManager::install(c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures",
 
 # Install CRAN packages
 install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid","glmnet","jtools","lmerTest","mashr","ashr","flashier","MatrixGenerics","umap"
-))```
+))
+```
 
 **### Processing of fastq files**
 
@@ -97,7 +98,8 @@ Before running the script, please prepare the following:
 Submit the script as a Slurm array job, specifying the total number of samples listed in the `lids` file:
 
 ```r
-sbatch --cpus-per-task=12 --array=1-N mapping_and_methylation.sh```
+sbatch --cpus-per-task=12 --array=1-N mapping_and_methylation.sh
+```
 
 - Replace N with the number of lines (samples) in your `lids` file.  
 

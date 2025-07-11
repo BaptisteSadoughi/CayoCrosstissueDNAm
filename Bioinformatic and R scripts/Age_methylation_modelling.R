@@ -2,156 +2,186 @@
 
 ### Differential Methylation Analysis with PQLSEQ
 
-#submit as a job using: sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 /path/to/thiscript
+# Submit with:
+# sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 /path/to/this_script.R
 
 rm(list = ls())
 
-library_list <- c("bsseq","BiocGenerics","GenomicRanges",
-                  "GenomicFeatures","tidyverse","PQLseq","purrr","svglite","qvalue")
-
+# ====================
+# Library dependencies
+# ====================
+library_list <- c("bsseq", "BiocGenerics", "GenomicRanges", "GenomicFeatures",
+                  "tidyverse", "PQLseq", "purrr", "svglite", "qvalue")
 lapply(library_list, require, character.only = TRUE)
 
+# ================
+# CONFIGURABLE PATHS
+# ================
+base_path <- "/your/base/path"
+metadata_path <- file.path(base_path, "metadata.txt")
+meth_dir <- file.path(base_path, "tissues_meth")
+kinship_path <- file.path(base_path, "wgs_kinmat.rds")
+output_dir <- file.path(base_path, "PQLSEQ")
+diagnostics_dir <- file.path(output_dir, "diagnostics")
+
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+if (!dir.exists(diagnostics_dir)) dir.create(diagnostics_dir, recursive = TRUE)
+
+# =============
+# Parallel cores
+# =============
 n.cores <- 40
-print(n.cores)
+print(paste("Using", n.cores, "cores"))
 
-# Define tissues of interest => determines files to load
-tissue_oi <- c("liver","whole_blood","spleen","omental_at","heart","ovaries","testis","kidney","lung","adrenal","thymus","thyroid","pituitary","skeletal_muscle")
+# ====================
+# Tissue selection
+# ====================
+tissue_oi <- c("liver", "whole_blood", "spleen", "omental_at", "heart",
+               "ovaries", "testis", "kidney", "lung", "adrenal",
+               "thymus", "thyroid", "pituitary", "skeletal_muscle")
 
-SAMP <- Sys.getenv("SLURM_ARRAY_TASK_ID")
-SAMP <- as.integer(SAMP)
+SAMP <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 
-tissue = tissue_oi[SAMP]
-
-#------------------------------
-#### LOADING DATA AND METADATA
-#------------------------------
-
-# Load metadata
-metadata_lid = read.table("/path/to/metadata.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
-metadata_lid$percent_unique<-metadata_lid$unique/metadata_lid$reads
-
-# define pattern
-filename <- gsub("XXX",tissue,"/path/to/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
-  
-# load data
-r <- readRDS(filename)
-  
-# subset metadata to matching samples
-subset_metadata <- metadata_lid[metadata_lid$lid_pid %in% colnames(r[["coverage"]]),]
-r$metadata <- subset_metadata
-  
-# name the object in the environment
-assign(tissue, r)
-
-rm(r,subset_metadata)
-
-# Remove flawed skeletal muscle
-if(exists("skeletal_muscle")) {
-skeletal_muscle$coverage <- skeletal_muscle$coverage[,-which(colnames(skeletal_muscle$coverage) == "LID_109490_PID_10416")]
-skeletal_muscle$methylation <- skeletal_muscle$methylation[,-which(colnames(skeletal_muscle$methylation) == "LID_109490_PID_10416")]
-skeletal_muscle$pmeth <- skeletal_muscle$pmeth[,-which(colnames(skeletal_muscle$pmeth) == "LID_109490_PID_10416")]
+if (is.na(SAMP) || SAMP < 1 || SAMP > length(tissue_oi)) {
+  stop("Invalid or missing SLURM_ARRAY_TASK_ID")
 }
 
-# load kinship
-kinmat<-readRDS("/path/to/kinmats/wgs_kinmat.rds")
+tissue <- tissue_oi[SAMP]
+cat("Analyzing tissue:", tissue, "\n")
 
-#------------------
-#### PQLSEQ
-#------------------
+# =====================
+# Load data and metadata
+# =====================
+metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
+  filter(lid_pid != "LID_109490_PID_10416") %>%
+  mutate(percent_unique = unique / reads)
 
-print(tissue)
-  
-# load tissue
+rds_path <- file.path(meth_dir, paste0(tissue, "_meth"), paste0("Regions_pmeth_full_", tissue, "_1000_14T.rds"))
+if (!file.exists(rds_path)) stop("Missing RDS file: ", rds_path)
+
+r <- readRDS(rds_path)
+
+# Match metadata to available samples
+subset_metadata <- metadata[metadata$lid_pid %in% colnames(r[["coverage"]]), ]
+r$metadata <- subset_metadata
+assign(tissue, r)
+rm(r, subset_metadata)
+
+# Remove flawed skeletal muscle sample
+if (tissue == "skeletal_muscle") {
+  sm <- get(tissue)
+  bad_id <- "LID_109490_PID_10416"
+  for (layer in c("coverage", "methylation", "pmeth")) {
+    sm[[layer]] <- sm[[layer]][, !(colnames(sm[[layer]]) == bad_id)]
+  }
+  assign(tissue, sm)
+}
+
+# ===============
+# Load kinship matrix
+# ===============
+kinmat <- readRDS(kinship_path)
+
+# =========================
+# Prepare data for PQLseq
+# =========================
 tissue_data <- get(tissue)
-  
-methcount = tissue_data$methylation
-coverage = tissue_data$coverage
+methcount <- tissue_data$methylation
+coverage  <- tissue_data$coverage
+metadata_tissue <- tissue_data$metadata
 
-# subset metadata to the coverage matrix
-metadata_tissue <- tissue_data$metadata 
-rownames(metadata_tissue) <- metadata_tissue$lid_pid
-subset_metadata_tissue <- metadata_tissue[colnames(coverage),]
-  
-subset_metadata_tissue <- subset_metadata_tissue %>% filter(age_at_sampling>=2.9)
-  
-# subset coverage and methylation matrix
-coverage <- coverage[,colnames(coverage) %in% subset_metadata_tissue$lid_pid]
-methcount <- methcount[,colnames(methcount) %in% subset_metadata_tissue$lid_pid]
-  
-# match columns order accross all data
-subset_metadata_tissue <- subset_metadata_tissue[match(subset_metadata_tissue$lid_pid, colnames(coverage)),]
-  
-# subset kinship matrix
-dnam_kinship_new <- kinmat[subset_metadata_tissue$monkey_id,subset_metadata_tissue$monkey_id]
-  
-# Check that metadata and methylation data match. Otherwise if condition is FALSE stop the script
-  if (!identical(rownames(subset_metadata_tissue),colnames(coverage))| !identical(rownames(subset_metadata_tissue),colnames(methcount)) |
-      !identical(colnames(dnam_kinship_new),subset_metadata_tissue$monkey_id) | !identical(rownames(dnam_kinship_new),subset_metadata_tissue$monkey_id)){
-    stop("STOP there are some mismatches across matrices")
-  }
-  
-  # extract predictors and covariates
-  age <- subset_metadata_tissue$age_at_sampling
-  sex_bino <- subset_metadata_tissue %>% mutate(sex_bino = as.numeric(ifelse(individual_sex == "F",0,1))) %>% pull(sex_bino)
-  percent_unique <- subset_metadata_tissue$percent_unique
-  group_bino <- subset_metadata_tissue %>% mutate(group_bino = as.numeric(ifelse(subset_metadata_tissue$group=="HH", 0, 1))) %>% pull(group_bino)
+# Filter metadata for age and matching IDs
+metadata_tissue <- metadata_tissue %>%
+  filter(age_at_sampling >= 2.9) %>%
+  column_to_rownames("lid_pid")
 
-  # build covariates
-  if (tissue == "testis" | tissue == "ovaries") {
-    covariates<- as.matrix(cbind(percent_unique, group_bino))
-  } else {
-    covariates<- as.matrix(cbind(percent_unique, sex_bino, group_bino))
-  }
-  
-  # remove sites with 0 coverage in a group (happens for gonads)
+coverage <- coverage[, colnames(coverage) %in% rownames(metadata_tissue)]
+methcount <- methcount[, colnames(methcount) %in% rownames(metadata_tissue)]
 
-  group0 <- subset_metadata_tissue[subset_metadata_tissue[,"group"] == "HH", ]
-  cov_group <- as.data.frame(coverage[,colnames(coverage) %in% group0$lid_pid])
-  cov_group0 <- coverage[rowSums(cov_group) == 0,]
-   
-  group1 <- subset_metadata_tissue[subset_metadata_tissue[,"group"] == "KK", ]
-  cov_group<-as.data.frame(coverage[,colnames(coverage) %in% group1$lid_pid])
-  cov_group1<-coverage[rowSums(cov_group) == 0,]
-  
-  sites_to_remove <-c(rownames(cov_group0), rownames(cov_group1)); length(sites_to_remove)
-  
-  methcount <- methcount[!rownames(methcount) %in% sites_to_remove, ]
-  coverage <- coverage[!rownames(coverage) %in% sites_to_remove, ]
-  
-  # run PQLseq
-  fit = PQLseq::pqlseq(RawCountDataSet=methcount,
-                     Phenotypes=age,
-                     RelatednessMatrix=dnam_kinship_new,
-                     LibSize=coverage,
-                     Covariates = covariates,
-                     fit.model="BMM",
-                     numCore = 40)
-  
-  # Prep bed file
-  fit$chr <- str_split_i(rownames(fit), i=2, pattern = "_")
-  fit$start <- str_split_i(rownames(fit), i=3, pattern = "_")
-  fit$end <- str_split_i(rownames(fit), i=4, pattern = "_")
-  fit <- fit %>% mutate(sites = rownames(.))
+# Match ordering
+metadata_tissue <- metadata_tissue[colnames(coverage), ]
 
-  # keep regions which converged
-  fit_conv <- fit %>% filter(converged==TRUE)
+# Subset kinship
+monkey_ids <- metadata_tissue$monkey_id
+dnam_kinship <- kinmat[monkey_ids, monkey_ids]
 
-  # # Check pvalue uniform distribution before using qvalue
-  # # https://www.bioconductor.org/packages/3.15/bioc/vignettes/qvalue/inst/doc/qvalue.pdf
-  if(!dir.exists("/path/to/PQLSEQ/diagnostics")) dir.create("/path/to/PQLSEQ/diagnostics")
-  
-  ggplot(data = fit_conv, aes(x=pvalue))+geom_histogram(bins = 20)+theme_minimal()+theme(axis.title = element_text(size=14),axis.text = element_text(size=14))
-  ggsave(filename = paste0("/path/to/PQLSEQ/diagnostics/",tissue,"_pvalhist.png"), width = 6, height = 4, dpi = 300)
-  
-  # Calculate qvalues and export diagnostic plots
-  qresults <- qvalue::qvalue(fit_conv$pvalue)
-  fit_conv$qval <- qresults$qvalues
-  
-  # Calculate adjusted BH pvalues
-  fit_conv$padj <- stats::p.adjust(fit_conv$pvalue, method = "BH")
-  
-  # name the output
-  assign(paste0("pqlseq_",tissue),fit_conv)
-  
-  # export the bed files for converged = TRUE regions
-  write.table(fit_conv,paste0("/path/to/PQLSEQ/bed_",tissue,".txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+# Check for consistency
+if (!identical(colnames(coverage), rownames(metadata_tissue)) ||
+    !identical(colnames(methcount), rownames(metadata_tissue)) ||
+    !identical(colnames(dnam_kinship), monkey_ids) ||
+    !identical(rownames(dnam_kinship), monkey_ids)) {
+  stop("Mismatch in data matrices")
+}
+
+# ================
+# Define covariates
+# ================
+age <- metadata_tissue$age
+sex_bino <- as.numeric(metadata_tissue$sex == "M")
+group_bino <- as.numeric(metadata_tissue$group == "KK")
+percent_unique <- metadata_tissue$percent_unique
+
+covariates <- if (tissue %in% c("ovaries", "testis")) {
+  as.matrix(cbind(percent_unique, group_bino))
+} else {
+  as.matrix(cbind(percent_unique, sex_bino, group_bino))
+}
+
+# ==============================================
+# Remove sites with 0 coverage in either group
+# ==============================================
+remove_zero_coverage_sites <- function(group_label) {
+  sample_ids <- rownames(metadata_tissue)[metadata_tissue$group == group_label]
+  zero_rows <- rowSums(coverage[, sample_ids]) == 0
+  rownames(coverage)[zero_rows]
+}
+
+sites_to_remove <- unique(c(remove_zero_coverage_sites("HH"), remove_zero_coverage_sites("KK")))
+
+coverage <- coverage[!rownames(coverage) %in% sites_to_remove, ]
+methcount <- methcount[!rownames(methcount) %in% sites_to_remove, ]
+
+# =============
+# Run PQLseq
+# =============
+fit <- PQLseq::pqlseq(
+  RawCountDataSet = methcount,
+  Phenotypes = age,
+  RelatednessMatrix = dnam_kinship,
+  LibSize = coverage,
+  Covariates = covariates,
+  fit.model = "BMM",
+  numCore = n.cores
+)
+
+# =========================
+# Post-processing and output
+# =========================
+fit$chr <- str_split_i(rownames(fit), 2, "_")
+fit$start <- str_split_i(rownames(fit), 3, "_")
+fit$end <- str_split_i(rownames(fit), 4, "_")
+fit$sites <- rownames(fit)
+
+fit_conv <- fit %>% filter(converged == TRUE)
+
+# Save p-value histogram
+ggplot(fit_conv, aes(x = pvalue)) +
+  geom_histogram(bins = 20) +
+  theme_minimal() +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14))
+
+ggsave(filename = file.path(diagnostics_dir, paste0(tissue, "_pvalhist.png")),
+       width = 6, height = 4, dpi = 300)
+
+# Compute q-values and BH-adjusted p-values
+qresults <- qvalue::qvalue(fit_conv$pvalue)
+fit_conv$qval <- qresults$qvalues
+fit_conv$padj <- p.adjust(fit_conv$pvalue, method = "BH")
+
+# Save BED-style output
+write.table(fit_conv,
+            file = file.path(output_dir, paste0("bed_", tissue, ".txt")),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+cat("Finished PQLseq for", tissue, "\n")

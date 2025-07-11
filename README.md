@@ -35,8 +35,13 @@ All analyses were performed via the command line in a Bash environment, using th
 - DelayedMatrixStats  
 - BiocParallel  
 
-**External software:**
-- bedtools (must be installed as a system-level tool or loaded via module)
+**External software:** (must be installed as a system-level tool or loaded via module)
+- bedtools
+- bowtie2  
+- samtools  
+- cutadapt  
+- trim_galore  
+- bismark 
 
 ---
 
@@ -80,16 +85,10 @@ Before running the script, please prepare the following:
    LID_106879_PID_15915
 
 4. Ensure that all required software and tools are installed and available in your system PATH or loaded as modules.  
-   Required tools include:  
-   - bowtie2  
-   - samtools  
-   - cutadapt  
-   - trim_galore  
-   - bismark  
-   - bedtools  
+   Required tools include: `bowtie2`, `samtools`, `cutadapt`, `trim_galore`, `bismark`, `bedtools`  
 
 5. Modify the script to set these paths according to your directory structure:
-   - genome_path: path to the Bismark genome folder for mmul10 (e.g., /path/to/bismark/mmul10/). To generate the Bismark folder, see [tutorial](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)  
+   - genome_path: path to the Bismark genome folder for mmul10 (e.g., /path/to/bismark/mmul10/). To generate the Bismark folder, see [tutorial](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/) 
    - base_path: newly created central directory  
    - PATH: access to the modules
 

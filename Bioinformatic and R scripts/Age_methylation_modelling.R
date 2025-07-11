@@ -27,7 +27,7 @@ tissue = tissue_oi[SAMP]
 #------------------------------
 
 # Load metadata
-metadata_lid = read.table("/scratch/sbaptis7/Cayo_meth_metadata/metadata_final_lidpids_Nov24.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
+metadata_lid = read.table("/path/to/metadata.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
 metadata_lid$percent_unique<-metadata_lid$unique/metadata_lid$reads
 
 # define pattern

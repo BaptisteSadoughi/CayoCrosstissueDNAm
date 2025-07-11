@@ -120,6 +120,6 @@ Before running the script:
 ```bash
 sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 /path/to/generate_bsseq.R
 
-## Building genomic regions
+---
 
-CpG density based regions are generated using [Generate_CpG_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Generate_CpG_region_methylation.R). Several path and parameters must be defined at the start of the script. The output are tissue-specific methylation data saved in separate subdirectories. The script requires to source [SupportFunctions_generate_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/SupportFunctions_generate_region_methylation.R) to run helper functions.
+## Building genomic regions

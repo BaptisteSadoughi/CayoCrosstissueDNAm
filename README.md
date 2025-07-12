@@ -149,8 +149,14 @@ Age-associated sites are intersected with genomic annotations and chrommHMM stat
 sbatch base_path/Bioinformatic and R scripts/run_intersect_annotations.sh
 ```
 
-Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R).
+Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R). Output includes Fig.2.
+
+## Tissue specific DNAm age clocks
 
 ## ELA-associated differential methylation
 
-## Tissue specific DNAm age clocks
+### Modelling steps
+Binomial mixed models testing for the association between each ELA and methylation levels are performed using [ELA_methylation_modelling.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_methylation_modelling.R), and effect size estimates are refined using Multivariate Adaptive Shrinkage in [ELA_mashr.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_mashr.R).
+
+### ELA analyses
+Annotation of ELA-associated sites is perfomed following the same procedure as for age by simply modifying the input bed file. Annotation, enrichment analysis, linear models testing for the effect of tissue types on effect sizes, and comparison of age and ELA effects are all performed with [ELA_analyses](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_analyses). Output includes Figs.4&5. 

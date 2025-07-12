@@ -10,7 +10,7 @@ library_list <- c("umap","RColorBrewer","svglite","tidyverse","rlang", "corrplot
 lapply(library_list, require, character.only=TRUE)
 
 # Percent methylation matrices of fully covered regions for each tissue
-pmeth = readRDS("/scratch/sbaptis7/Cayotissue_CpG_coverage/combined_CpG_Regions/full_matrices/Regions_full_pmeth14.rds")
+pmeth = readRDS("/path/to/full_matrices/Regions_full_pmeth14.rds")
 
 # Convert matrices to data frames for merging and create a new column with row names
 list_of_dfs <- lapply(pmeth, function(x) {
@@ -34,7 +34,7 @@ pmeth <- pmeth %>% select(-rownames)
 pmeth = as.matrix(pmeth)
 
 # Load metadata
-metadata_lid = read.table("/scratch/sbaptis7/Cayo_meth_metadata/metadata_final_lidpids_Nov24.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
+metadata_lid = read.table("/path/to/multitissue_metadata.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
 
 pmeth <- pmeth[,colnames(pmeth) %in% metadata_lid$lid_pid]
 

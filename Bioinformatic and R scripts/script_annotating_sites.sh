@@ -7,8 +7,10 @@
 #SBATCH --mem=10GB
 
 # ======= Configuration =======
-BEDFILES_DIR="${1:-/your/base/path/MASH/bedfiles}"
-ANNOTATIONS_DIR="${2:-/your/base/path/annotations}"
+base_path="${1:-/your/default/path}" # <- define this path
+
+BEDFILES_DIR="$base_path/MASH/bedfiles"
+ANNOTATIONS_DIR="$base_path/annotations"
 INPUT_BED="$BEDFILES_DIR/all_sites_age_CpG.bed"
 
 # ======= Error checking =======

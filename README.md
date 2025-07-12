@@ -1,7 +1,7 @@
 # CayoCrosstissueDNAm
 **Repository for the project on multi-tissue DNA methylation in Cayo Santiago rhesus macaques (bulk-tissue rrbs).**
 
-Analyses were performed using the Arizona State University SOL supercomputer (DOI: [10.1145/3569951.3597573](https://doi.org/10.1145/3569951.3597573)) on high-performance computing (HPC) clusters. We have aimed to generalize the code by removing system-specific references to installed software and modules. A list of required software and versions is provided below. On HPC systems, all required scripts and binaries must be accessible through the system's PATH.
+Analyses were performed using the Arizona State University SOL supercomputer (DOI: [10.1145/3569951.3597573](https://doi.org/10.1145/3569951.3597573)) on high-performance computing (HPC) clusters. We have aimed to generalize the code by removing system-specific references to installed software and modules. A list of required software and versions is provided below. On HPC systems, all required scripts and binaries must be accessible through the system's PATH. We suggest that users create a `base_path` containing the `Bioinformatic and R scripts` and `metadata` folders. 
 
 All analyses were performed via the command line in a Bash environment, using the Slurm workload manager or through an RStudio interface for R version 4.4.0, with the following R package dependencies:
 
@@ -124,3 +124,33 @@ sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 /path/to/
 ## Building genomic regions
 
 CpG density based regions are generated using [Generate_CpG_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Generate_CpG_region_methylation.R). Several path and parameters must be defined at the start of the script. The output are tissue-specific methylation data saved in separate subdirectories. The script requires to source [SupportFunctions_generate_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/SupportFunctions_generate_region_methylation.R) to run helper functions.
+
+Then, DNA methylation matrices including the subset of fully covered regions and matrices including imputed data are generated using [Percent_methylation_imputation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Percent_methylation_imputation.R).
+
+## Visualization of sample clustering with UMAP.
+[UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R). Output includes Fig.1D.
+
+## Tissue specific DNAm markers
+Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R) (Fig.1E), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R) (Fig.1F).
+
+## Age-associated differential methylation
+
+### Modelling steps
+Binomial mixed models testing for the association between age and methylation levels are performed using [Age_methylation_modelling.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_methylation_modelling.R), and effect size estimates are refined using Multivariate Adaptive Shrinkage in [Age_mashr.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_mashr.R).
+
+### Annotation and enrichment
+Before running the scripts:
+
+1. Set the path to your central directory (`base_path`) inside the script.
+2. Download annotation files into a subdirectory (`base_path/annotations`)
+   
+Age-associated sites are intersected with genomic annotations and chrommHMM states using [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh).
+```bash
+sbatch base_path/Bioinformatic and R scripts/run_intersect_annotations.sh
+```
+
+Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R).
+
+## ELA-associated differential methylation
+
+## Tissue specific DNAm age clocks

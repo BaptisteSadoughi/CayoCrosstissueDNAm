@@ -118,7 +118,7 @@ Before running the script:
 ### Running the script
 
 ```bash
-sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 /path/to/generate_bsseq.R
+sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 base_path/Bioinformatic and R scripts/generate_bsseq.R
 ```
 
 ## Building genomic regions

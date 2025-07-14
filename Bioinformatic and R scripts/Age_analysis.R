@@ -25,6 +25,7 @@ tissue_oi <- c("whole_blood","spleen","omental_at","heart","kidney","lung","adre
 # -----------------------------------
 
 # === Helper function to read region files, select and rename cols, add site ===
+
 read_region_file <- function(filepath) {
   read.table(filepath, header = FALSE, sep = "\t") %>%
     dplyr::select(V1, V2, V3) %>%
@@ -281,7 +282,8 @@ chrommHmm_fischer_results <- chrommHmm_fischer_results %>%
                              "14_ReprPCWk"="Weak Repressed PolyComb",
                              "15_Quies"="Quiescent",))
 
-### Table S6
+# === Table S6 ===
+                                     
 chrommHmm_fischer_results %>% select(tissue, annotation, OR, conf.low, conf.high, pvalue, sided, method, chromHMM)
 
 # === Plot Fig 2B ===
@@ -310,16 +312,18 @@ ggsave(file.path(figure_path,"Fig2B.pdf"), width=7.5,height=7.5)
 # === INTERSECTION OF TISSUE AGE ASSOCIATED SITES AND TISSUE-SPECIFIC MARKERS ===
 # -----------------------------------
 
-# Load tissue markers
+# === Load tissue markers and age DMRs ===
+                                     
+# Load tissue markers                            
 tDMR <- read.table(file.path(base_path,"tissue_markers","tissuespecific_methylation.txt"),header=TRUE)
 
-# Load the list of age-associated sites for all tissues (i.e., any sites that passed the lfsr in that tissue)
+# Load the list of age-associated sites for all tissues (i.e., any sites that passed the lfsr in that tissue)                             
 coeff_intercept_list <- readRDS(file.path(bed_path,"tissue_age_associated_sites_list.rds"))
 
-# Load all sites tested for age
+# Load all sites tested for age                             
 allsites_age <- read.table(file.path(bed_path,"all_sites_age.txt"), header=TRUE)
 
-# Load all sites tested for tissue markers
+# Load all sites tested for tissue markers                               
 for(i in tissue_oi){
   filename <- gsub("XXX",i,file.path(base_path,"Regions","tissues_meth","XXX_meth","Regions_pmeth_full_XXX_1000_14T.rds"))
   r <- readRDS(filename)
@@ -328,11 +332,9 @@ for(i in tissue_oi){
 }
 dfs <- list(liver_cov, kidney_cov, lung_cov, heart_cov, omental_at_cov, spleen_cov, adrenal_cov, thymus_cov, thyroid_cov, pituitary_cov, whole_blood_cov, skeletal_muscle_cov)  # Add all 12 dataframes to this list
 
-# Find shared row names across all dataframes
+# Find shared row names across all dataframes                              
 allsites_markers <- Reduce(intersect, lapply(dfs, rownames)) #179,969 sites measured across all 12 tissues
-
 markers_tested_for_age <- intersect(allsites_markers,allsites_age$regions)
-                                     
 tDMR_filtered <- tDMR %>% filter(sites %in% markers_tested_for_age)
 
 # === Build data with merged tissue markers and aDMRs ===
@@ -381,6 +383,7 @@ tissues_spe_enrich<- as.data.frame(do.call(rbind, fisher_list))
 colnames(tissues_spe_enrich)<-c("pvalue", "conf.low", "conf.high", "OR", "null", "sided", "method", "table", "tissue")
 
 # === Table S8 ===
+                                     
 tissues_spe_enrich <- tissues_spe_enrich %>%
   mutate(across(c(OR, pvalue, conf.low, conf.high), as.numeric))
 
@@ -419,7 +422,8 @@ ggplot(data=tissues_spe_enrich, aes(x=tissue, y=log2(OR), color=tissue)) +
         axis.title.x = element_blank())
 ggsave(file.path(figure_path, "Fig2G.pdf"), width=6,height=5)
 
-# === FigS7: Beta comparisons ===
+# === FigS7 ===
+                                     
 ggplot(tDMR_aDMR, aes(x = beta_marker, y = beta_age)) +
   geom_point(alpha = 0.2) +
   geom_hline(yintercept = 0) +
@@ -433,7 +437,7 @@ ggplot(tDMR_aDMR, aes(x = beta_marker, y = beta_age)) +
         strip.text = element_text(size = 12, face = "bold"))
 ggsave(file.path(figure_path,"FigS7.png"), width = 10, height = 6)
                                      
-# === Fig2H: Divergent vs Convergent sites ===
+# === Fig2H ===
 
 tDMR_aDMR = tDMR_aDMR %>%
     mutate(direction_of_change = case_when(

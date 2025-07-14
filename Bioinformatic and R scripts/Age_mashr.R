@@ -1,25 +1,49 @@
-## This script performs MASHr correction on estimated effect sizes for age and determines tissue shared and tissue-specific effects.
+# ==============================================================================
+# Mashr Correction of Age-associated Effects
+# ==============================================================================
 
-### Load the bed files from PQLSEQ
+rm(list=ls())
+
+# === Libraries ===
+required_libraries <- c("ashr", "mashr", "flashier", "svglite", "tidyverse", "corrplot", "MatrixGenerics","ggpubr")
+lapply(required_libraries, require, character.only = TRUE)
+
+# === Paths ===
+base_path <- "/path/to/project"  # <-- Define this path only once
+pqlseq_path <- file.path(base_path, "PQLSEQ")
+metadata_path <- file.path(base_path,"metadata", "multitissue_metadata.txt")
+mash_path <- file.path(base_path, "MASH")
+bed_path <- file.path(mash_path, "bedfiles")
+
+if (!dir.exists(paths = mash_path)) dir.create(mash_path, recursive = TRUE, showWarnings = FALSE)
+if (!dir.exists(paths = bed_path)) dir.create(bed_path, recursive = TRUE, showWarnings = FALSE)
+
+# === Tissues of interest ===
+tissue_oi <- c("whole_blood", "spleen", "omental_at", "heart", "testis", "ovaries", "kidney", "lung", "adrenal", "thymus", "thyroid", "pituitary", "liver", "skeletal_muscle")
+
+# --- Significance threshold ---
+lfsr_threshold <- 0.05
+
+vars_to_keep <- c("base_path", "pqlseq_path", "metadata_path", "mash_path", "bed_path", "lfsr_threshold", "tissue_oi")
+
+# -----------------------------------
+# === CONSTRUCT MATRICES FOR MASHr ===
+# -----------------------------------
+
+# === Load PQLSEQ data into environment ===
 
 read_table_and_rownames <- function(tissue) {
-  pqlseq <- read.table(paste("/path/to/PQLSEQ/bed_", tissue, ".txt", sep = ""),
-                       sep = "\t",
-                       header = TRUE)
-
+  pqlseq <- read.table(file.path(pqlseq_path, paste0("bed_", tissue, ".txt")), sep = "\t", header = TRUE)
   rownames(pqlseq) <- pqlseq$sites
   return(pqlseq)
 }
 
 data_list <- lapply(tissue_oi, read_table_and_rownames)
-
 names(data_list) <- paste("pqlseq", tissue_oi, sep = "_")
-
 list2env(data_list, envir = .GlobalEnv)
 
-#### BUILD BETA AND SE MATRICES (for MASHr)
-####
-# Function to fill in matrix
+# === Build matrices ===
+
 fill_matrix <- function(column) {
   # get all rownames from all dataframes
   all_rownames <- unique(unlist(lapply(tissue_oi, function(x) row.names(get(paste("pqlseq", x, sep = "_"))))))
@@ -34,352 +58,392 @@ fill_matrix <- function(column) {
     df <- get(paste("pqlseq", tissue, sep = "_"))
     matrix_data[rownames(df), tissue] <- df[[column]]
   }
-
   return(matrix_data)
 }
 
-# Export matrices of beta estimates from PQLSEQ for MASH
 matrix_beta <- fill_matrix("beta")
 matrix_SE <- fill_matrix("se_beta")
 
-saveRDS(list(matrix_beta=matrix_beta, matrix_SE = matrix_SE),"/path/to/PQLSEQ/pre_MASH_effects.RDS")
+saveRDS(list(matrix_beta=matrix_beta, matrix_SE = matrix_SE), file.path(pqlseq_path, "pre_MASH_effects.RDS"))
 
-############################
-#
-# MASHr
-#
-############################
+# -----------------------------------
+# === MASHr ===
+# -----------------------------------
 
-# Permorm MASH correction on estimated effect sizes calculated from PQLseq.
-# The script follows the flow of tutorial vignettes available at https://stephenslab.github.io/mashr/articles/index.html
+rm(list = setdiff(ls(), vars_to_keep))
 
-rm(list = ls())
+# Follows the flow of tutorial vignettes available at https://stephenslab.github.io/mashr/articles/index.html
 
-library_list <- c("ashr", "mashr", "flashier", "svglite", "tidyverse")
-lapply(library_list, require, character.only=TRUE)
-
-# Load effect sizes and SE calculated with PQLSEQ
-pqlseq_effects = readRDS("/path/to/PQLSEQ/pre_MASH_effects.RDS")
-
-# Split gonads from other tissues because values are only available for one of the two sexes
-pqlseq_effects$matrix_beta <- subset(pqlseq_effects$matrix_beta,select=-c(testis,ovaries))
-pqlseq_effects$matrix_SE <- subset(pqlseq_effects$matrix_SE,select=-c(testis,ovaries))
-
-# Work on fully covered sites
-pqlseq_effects = lapply(pqlseq_effects, function(x) { x[complete.cases(x),]})
-
-# Turn to mash format
+pqlseq_effects <- readRDS(file.path(pqlseq_path, "pre_MASH_effects.RDS"))
+pqlseq_effects$matrix_beta <- subset(pqlseq_effects$matrix_beta, select = -c(testis, ovaries))
+pqlseq_effects$matrix_SE <- subset(pqlseq_effects$matrix_SE, select = -c(testis, ovaries))
+pqlseq_effects <- lapply(pqlseq_effects, function(x) x[complete.cases(x), ])
+  
 data = mash_set_data(pqlseq_effects$matrix_beta, pqlseq_effects$matrix_SE)
 
-##### Identify a subset of strong tests
-tissue_files <- list.files("/path/to/PQLSEQ", pattern=".txt", full.names=TRUE)
+# === Strong set ===
+                         
+tissue_files <- list.files(pqlseq_path, pattern = ".txt", full.names = TRUE)
 strong_subset_list <- list()
 for(file in tissue_files) {
-  # Load the data from the .txt file into a data frame
   bed_data <- read.table(file, header = TRUE)
-  
-  # Filter rows for qval < 0.001
-  filtered_data <- bed_data[bed_data$qval < quantile(bed_data$qval, 0.01),]
-  
-  # Extract tissue type from the file name
+  filtered_data <- bed_data[bed_data$qval < quantile(bed_data$qval, 0.01),] # Filter rows for qval < 0.001
   tissue_name <- gsub("\\.txt$", "", basename(file))
-  
-  # Add the 'site' column of the filtered data for this tissue to the list
   strong_subset_list[[tissue_name]] <- filtered_data$site
 }
 
 strong_subset_list <- strong_subset_list[!names(strong_subset_list) %in% c("bed_testis", "bed_ovaries")]
 strong_subset <- Reduce(union, strong_subset_list)
-
-# we can only keep the sites which were fully covered
 strong_subset <- intersect(rownames(pqlseq_effects$matrix_beta),strong_subset)
 
-# Estimate background correlation in the data
+# === Estimate background correlation ===
+
 Vhat = estimate_null_correlation_simple(data)
 
-# Update mash objects with correlation structure
+# === Update mash objects with correlation structure ===
+                         
 data.cor = mash_update_data(data, V=Vhat)
 data.strong.cor = mash_set_data(pqlseq_effects$matrix_beta[strong_subset,], pqlseq_effects$matrix_SE[strong_subset,], V=Vhat)
 
-# Investigate data-driven covariances on the strong set
+# === Investigate data-driven covariances ===
+
 U.pca = cov_pca(data.strong.cor, 5)
 U.f = cov_flash(data.strong.cor)
-
-# Run ED (Extreme Deconvolution) with data-driven covariances
 U.ed = cov_ed(data.strong.cor, c(U.pca, U.f))
-
-# canonical covariance
 U.c = cov_canonical(data.cor)
 
-# Estimate mixture proportions with MASH (we use both canonical and data-driven covariances)
+# === Estimate mixture proportions ===
+
 m.all = mash(data.cor, Ulist = c(U.ed, U.c))
-saveRDS(m.all, "/path/to/MASH/mash_object.RDS")
+saveRDS(m.all, file.path(mash_path, "mash_object.RDS"))
 
 mash_results <- with(m.all$result, list(beta = PosteriorMean, SD = PosteriorSD, LFSR = lfsr))
-saveRDS(mash_results, "/path/to/MASH/mash_estimates.RDS")
+saveRDS(mash_results, file.path(mash_path, "mash_estimates.RDS"))
 
-############################################################################
-#
-# Direction of change according to average percent methylation levels
-#
-#############################################################################
-rm(list=ls())
-library_list <- c("ashr", "mashr", "flashier", "corrplot","svglite","tidyverse","MatrixGenerics")
-lapply(library_list, require, character.only=TRUE)
-
-tissue_oi <- c("whole_blood","spleen","omental_at","heart","testis","ovaries","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle")
-
-#----------------------------------------------------------
-# INSPECTING AND PLOTTING RESULTS
-#----------------------------------------------------------
-mash_results <- readRDS("/path/to/MASH/mash_estimates_June25.RDS")
-m.all <- readRDS("/path/to/MASH/mash_object_June25.RDS")
+# -----------------------------------
+# === DIRECTION OF CHANGE ANALYSIS ===
+# -----------------------------------
 
 # Load metadata
-metadata_lid = read.table("/path/to/metadata.txt", sep = "\t", header = TRUE)
-metadata_lid = metadata_lid %>% filter(lid_pid != "LID_109490_PID_10416")
-metadata_lid$percent_unique<-metadata_lid$unique/metadata_lid$reads
+metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
+  filter(lid_pid != "LID_109490_PID_10416") %>%
+  mutate(percent_unique = unique / reads) %>%
+  filter(age_at_sampling>2.9) # remove infants
 
-# Remove infants
-metadata_lid_ad <- metadata_lid %>% filter(age_at_sampling>2.9)
-
-# Loop through the folders to load the tissue files and associated metadata
-now <- Sys.time()
-for(tissue in tissue_oi){
+# --- Load tissues as list ---
+load_tissue_data <- function(tissue) {
+  message("Loading tissue data for: ", tissue)
+  file_path <- gsub("XXX", tissue, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
+  r <- readRDS(file_path)
+  sample_ids <- intersect(colnames(r$coverage), metadata$lid_pid)
+  r$metadata <- metadata %>% filter(lid_pid %in% sample_ids)
   
-  # define pattern
-  filename <- gsub("XXX",tissue,"/path/to/tissues_meth/XXX_meth/Regions_pmeth_full_XXX_1000_14T.rds")
-  
-  # load data
-  r <- readRDS(filename)
-  
-  # subset metadata to matching samples #not that I use the full metadata because infants were included in the data generation process
-  subset_metadata <- metadata_lid[metadata_lid$lid_pid %in% colnames(r[["coverage"]]),]
-  r$metadata <- subset_metadata
-  
-  # name the object in the environment
-  assign(tissue, r)
-  
-  #rm
-  rm(r,subset_metadata)
-}
-print(Sys.time()-now)
-
-# Remove flawed skeletal muscle
-if(exists("skeletal_muscle")) {
-  skeletal_muscle$coverage <- skeletal_muscle$coverage[,-which(colnames(skeletal_muscle$coverage) == "LID_109490_PID_10416")]
-  skeletal_muscle$methylation <- skeletal_muscle$methylation[,-which(colnames(skeletal_muscle$methylation) == "LID_109490_PID_10416")]
-  skeletal_muscle$pmeth <- skeletal_muscle$pmeth[,-which(colnames(skeletal_muscle$pmeth) == "LID_109490_PID_10416")]
+  # Optional: remove flawed sample for skeletal muscle
+  if (tissue == "skeletal_muscle") {
+    idx <- which(colnames(r$coverage) == "LID_109490_PID_10416")
+    if (length(idx) > 0) {
+      r$coverage <- r$coverage[, -idx]
+      r$methylation <- r$methylation[, -idx]
+      r$pmeth <- r$pmeth[, -idx]
+    }
+  }
+  return(r)
 }
 
-# Extract results for further inspection (note that infants are not included in these results)
+# Load tissues into a named list
+tissue_data_list <- setNames(lapply(tissue_oi, load_tissue_data), tissue_oi)
+
+# --- Extract LFSR and PM ---
+
 lfsr=as.data.frame(get_lfsr(m.all))
 pm=as.data.frame(get_pm(m.all))
 lfsr$region<-rownames(lfsr)
 
-#set sig threshold 
-threshold <- 0.05
-
+# --- Intersect with methylation levels ---
+                         
 coeff_intercept_list <- list()
 
-for(i in tissue_oi[tissue_oi!=c("testis","ovaries")]){
+for (tissue in setdiff(tissue_oi, c("testis", "ovaries"))) {
+  sig_regions <- lfsr %>% filter(!!sym(tissue) < lfsr_threshold) %>% pull(region)
+  tissue_betas <- pm[sig_regions, tissue, drop = FALSE]
   
-  # get significant regions in the tissue
-  tissue_lfsr <- lfsr[lfsr[,i] <threshold,]$region
+  if (length(sig_regions) == 0) next  # skip empty
   
-  # extract their coefficients in the tissue
-  tissue_beta <- pm[tissue_lfsr,i]
+  tissue_beta <- tibble(
+    region = sig_regions,
+    beta = tissue_betas[[1]],
+    sign_beta = ifelse(tissue_betas[[1]] > 0, "pos", "neg"),
+    tissue = tissue
+  )
   
-  # built dataframe
-  tissue_beta <- data.frame(region=tissue_lfsr, beta = tissue_beta, tissue=i)
+  tissue_pmeth <- tissue_data_list[[tissue]]$pmeth
+  sample_ids <- intersect(colnames(tissue_pmeth), metadata$lid_pid)
+  tissue_pmeth <- tissue_pmeth[, sample_ids]
   
-  tissue_beta$sign_beta <- ifelse(tissue_beta$beta >0, "pos", "neg")
+  pop_means <- rowMeans2(tissue_pmeth[tissue_beta$region, ], na.rm = TRUE)
+  young_ids <- metadata %>%
+    filter(tissue == tissue, age <= 6) %>%
+    pull(lid_pid)
   
-  # Extract percent methylation for samples in that tissue
-  tissue_meth <- get(i)
+  young_means <- rowMeans2(tissue_pmeth[tissue_beta$region, young_ids], na.rm = TRUE)
   
-  # Extract percent methylation matrix and Remove infants
-  tissue_pmeth <- tissue_meth$pmeth
-  tissue_pmeth <- tissue_pmeth[,colnames(tissue_pmeth) %in% metadata_lid_ad$lid_pid]
+  # Sanity check
+  stopifnot(length(young_means) == nrow(tissue_beta), length(pop_means) == nrow(tissue_beta))
   
-  # calculate study sample mean percent methylation to flag hypo hyper sites
-  pop_pmeth_intercept <- rowMeans2(tissue_pmeth[tissue_beta$region,], na.rm = TRUE)
-
-  # calculate mean percent methylation in the subset of young individuals
-  meta_young_lids <- metadata_lid_ad %>% filter(grantparent_tissueType == i & age_at_sampling <= 6) %>% pull(lid_pid)
+  tissue_beta <- tissue_beta %>%
+    mutate(
+      young_intercept = young_means,
+      pop_intercept = pop_means,
+      intercept_high_low_50 = ifelse(young_intercept < 0.5, "lower", "higher"),
+      nonvariable = ifelse(pop_intercept < 0.1 | pop_intercept > 0.9, "nonvar", "var")
+    )
   
-  tissue_pmeth_young <- tissue_pmeth[tissue_beta$region,meta_young_lids]
-  
-  young_pmeth_intercept <- rowMeans2(tissue_pmeth_young, na.rm = TRUE)
-
-  # check that vectors' length is still equal before merging
-  if(length(young_pmeth_intercept)!=nrow(tissue_beta) | length(pop_pmeth_intercept)!=nrow(tissue_beta)) stop(paste0("length of regions means and coefficients differ for ",name))
-  
-  tissue_beta$young_intercept <- young_pmeth_intercept
-  tissue_beta$pop_intercept <- pop_pmeth_intercept
-  tissue_beta$intercept_high_low_50 <- ifelse(tissue_beta$young_intercept<0.5,"lower","higher")
-  tissue_beta$nonvariable <- ifelse(tissue_beta$pop_intercep <0.1 | tissue_beta$pop_intercep >0.9 ,"nonvar","var")
-
-  # save in list
-  coeff_intercept_list[[i]] <- tissue_beta
+  coeff_intercept_list[[tissue]] <- tissue_beta
 }
 
-# Export this list which can be useful for many other analysis
-# saveRDS(coeff_intercept_list, "/path/to/MASH/bedfiles/tissue_age_associated_sites_list.rds") #exported with lfsr<0.05
-                                       
-############################ Test whether sites tend to trend towards 50 with age
+# Save results
+saveRDS(coeff_intercept_list, file.path(bed_path,"tissue_age_associated_sites_list.rds"))
 
-coeff_intercept_list=readRDS("/path/to/MASH/bedfiles/tissue_age_associated_sites_list.rds")
-
-### NOTE that the categories for intercept "higher" and "lower" (than 50% pmeth) were defined
-### based on individuals <6 years of age to test whether sites starting in early life above or below
-### threshold tend to move towards 50% with advancing age. Results using the average calculated on all individuals are qualitatively the same.
-
-# Fisher's exact test per tissue
-apply_fisher_test <- function(df){
-  contingency_table <- with(df, table(sign_beta, intercept_high_low_50))
-  test_result <- fisher.test(contingency_table)
-  return(test_result)
+# --- Pearson correlation (variable sites only) ---
+apply_cor_test <- function(df) {
+  df <- df %>% filter(nonvariable == "var")
+  test <- cor.test(df$beta, df$young_intercept, method = "pearson")
+  tibble(pearson_corr = round(test$estimate, 3), pvalue = ifelse(test$p.value < 0.001, "<0.001", test$p.value))
 }
 
-# apply function to each dataframe in the list
-test_results_list <- lapply(coeff_intercept_list, apply_fisher_test)
+# --- Table S5 ---
+results_corr_df_var <- map_dfr(coeff_intercept_list, apply_cor_test, .id = "tissue") %>%
+  mutate(
+    tissue = recode(tissue,
+                    "omental_at" = "omental adipose",
+                    "skeletal_muscle" = "skeletal muscle",
+                    "whole_blood" = "whole blood"
+    )
+  ) %>%
+  arrange(tissue)
 
-### Note the table is neg - pos x higher - lower
+# --- Fig S3 ---
+all_coeff <- bind_rows(coeff_intercept_list)
 
-# function to extract components
-extract_components <- function(test_result){
-  # Fisher's test returns a list, we will extract the components we need
-  estimate <- test_result$estimate
-  lower_CI <- test_result$conf.int[1]
-  upper_CI <- test_result$conf.int[2]
-  pvalue <- test_result$p.value
+cat_young_plot <- all_coeff %>%
+  mutate(
+    interaction = recode(paste(sign_beta, intercept_high_low_50),
+                         "neg higher" = "high decreasing",
+                         "neg lower"  = "low decreasing",
+                         "pos higher" = "high increasing",
+                         "pos lower"  = "low increasing"),
+    tissue = recode(tissue,
+                    "omental_at" = "omental adipose",
+                    "skeletal_muscle" = "skeletal muscle",
+                    "whole_blood" = "whole blood")
+  ) %>%
+  ggplot(aes(x = interaction, fill = interaction)) +
+  geom_bar() +
+  labs(x = "", title = "A") +
+  facet_wrap(~tissue, scales = "free_y") +
+  theme_bw(base_size = 12) +
+  theme(legend.position = "none", plot.title = element_text(size = 28),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        strip.text = element_text(face = "bold"))
+
+corr_plot <- all_coeff %>%
+  mutate(tissue = recode(tissue,
+                         "omental_at" = "omental adipose",
+                         "skeletal_muscle" = "skeletal muscle",
+                         "whole_blood" = "whole blood")) %>%
+  ggplot(aes(x = young_intercept, y = beta)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = 0.5, linetype = "dashed") +
+  labs(x = "Avg. methylation in young subjects", y = "Age-associated effect size", title = "B") +
+  facet_wrap(~tissue, scales = "free_y") +
+  theme_bw(base_size = 12) +
+  theme(legend.position = "none", plot.title = element_text(size = 28))
+
+# Combine and save plot
+ggpubr::ggarrange(cat_young_plot, corr_plot, nrow = 2)
+ggsave(file.path(base_path,"Figures","FigS3.png"), width=9.5, height=12.5, dpi=300)
+
+# -----------------------------------
+# === TISSUE SHARING OF AGE EFFECTS ===
+# -----------------------------------
+
+rm(list = setdiff(ls(), vars_to_keep))
+
+mash_results <- readRDS(file.path(mash_path, "mash_estimates.RDS"))
+m.all <- readRDS(file.path(mash_path, "mash_object.RDS")
+
+# Extract lfsr and posterior means
+lfsr=as.data.frame(get_lfsr(m.all))
+pm=as.data.frame(get_pm(m.all))
+lfsr$id<-1:dim(lfsr)[1]
+pm$id<-1:dim(pm)[1]
+
+ # Count number of tissues (columns) below threshold for each row
+lfsr$sig_tissues <- apply(lfsr[, !(names(lfsr) == "id")] < lfsr_threshold, 1, sum)
+
+# paste the names of the tissues (columns) below threshold for each row
+lfsr <- lfsr %>%
+  rowwise() %>%
+  mutate(
+    
+    # adapt the range to the number of tissues
+    sig_which_tissues = paste(names(.)[1:12][c_across(1:12) < lfsr_threshold], collapse = ",")
+    
+  ) %>%
+  ungroup() %>% as.data.frame()
+
+rownames(lfsr) <- rownames(pm)
+
+# === Fig 2F ===          
+x = get_pairwise_sharing(m.all, factor=0.5, lfsr_thresh = 0.05) 
+colnames(x)[colnames(x)=="whole_blood"] <- "whole blood"
+rownames(x)[rownames(x)=="whole_blood"] <- "whole blood"
+colnames(x)[colnames(x)=="omental_at"] <- "omental adipose"
+rownames(x)[rownames(x)=="omental_at"] <- "omental adipose"
+colnames(x)[colnames(x)=="skeletal_muscle"] <- "skeletal muscle"
+rownames(x)[rownames(x)=="skeletal_muscle"] <- "skeletal muscle"
+Cairo::CairoPNG(base_path,"Figures","Fig2F.png")
+corrplot(x, method='color', col.lim=c(0,1), type='lower', addCoef.col = "black", tl.col="black", tl.srt=45,number.cex=0.65,cl.cex=1.3, cl.length = 5,tl.cex = 1.3)
+dev.off()
+
+# === Fig 2A === 
+beta_res <- mash_results$beta
+lfsr_res <- mash_results$LFSR
+
+beta_res <- beta_res %>%
+  as_tibble(rownames = "Regions") %>% 
+  pivot_longer(cols = -Regions, names_to = "tissue", values_to = "beta")
+
+beta_res <- beta_res %>% mutate(tissue = recode(tissue,
+                                                "skeletal_muscle" = "skeletal muscle",
+                                                "whole_blood" = "whole blood",
+                                                "omental_at" = "omental adipose"))
+lfsr_res <- lfsr_res %>%
+  as_tibble(rownames = "Regions") %>% 
+  pivot_longer(cols = -Regions, names_to = "tissue", values_to = "lfsr")
+lfsr_res <- lfsr_res %>% mutate(tissue = recode(tissue,
+                                                "skeletal_muscle" = "skeletal muscle",
+                                                "whole_blood" = "whole blood",
+                                                "omental_at" = "omental adipose"))
+
+lfsr_sig <- lfsr_res %>% filter(lfsr < lfsr_threshold)
+
+beta_sig <- beta_res %>% semi_join(lfsr_sig, by=c("Regions", "tissue"))
+
+summary_count <- beta_sig %>% group_by(tissue) %>% summarize(pos = sum(beta>0),
+                                                             neg = -sum(beta<0)) %>% tibble() %>% pivot_longer(cols = -tissue, names_to = "sign", values_to = "count")
+
+ggplot(summary_count, aes(x=tissue, y=count, fill = tissue, alpha=sign))+
+  geom_col()+
+  labs(y="Number of differentially methylated regions")+
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k"))+
+  scale_fill_manual(values = extended_palette)+
+  scale_alpha_discrete(range = c(0.7,1))+
+  theme_bw()+theme(
+    axis.text.x=element_text(angle = 45, hjust=1, vjust = 1, color="black",size=17),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(color="black",size=17, hjust = 1),
+    axis.text.y = element_text(color="black",size=17),
+    legend.position = "n")
+ggsave(base_path,"Figures","Fig2A.png")
+
+######### INVESTIGATING TISSUE SHARED AND TISSUE SPECIFIC DMRs
+
+lfsr_sig1<-subset(lfsr,sig_tissues>0)
+lfsr_sig1$within2_v2<-NA
+lfsr_sig1$focal_pm<-NA
+lfsr_sig1$other_pm<-NA
+
+pm_sig1<-subset(pm, id %in% lfsr_sig1$id)
+
+# Double check which tissues should be included
+tissue_oi <- c("whole_blood","spleen","omental_at","heart","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle")
+
+rownames_sig1=rownames(lfsr_sig1)
+
+for (i in 1:dim(lfsr_sig1)[1]){
   
-  # return a data frame
-  return(data.frame(estimate = estimate, lower_CI = lower_CI, upper_CI = upper_CI, pvalue = pvalue))
+  z<-min(lfsr_sig1[i, tissue_oi])[1]
+  focal<-pm[lfsr_sig1$id[i],which(lfsr_sig1[i, tissue_oi] == z)][1]
+  not_focal<-pm[lfsr_sig1$id[i],which(lfsr_sig1[i, tissue_oi] != z)]
+  not_focal2<-log2(as.numeric(not_focal)/as.numeric(focal)) #negative numbers returning NaN
+  
+  lfsr_sig1$within2_v2[i]<-length(which(not_focal2 > -1 & not_focal2<1))
+  not_focal_df<-t(as.data.frame(not_focal2))
+  colnames(not_focal_df) <-colnames(not_focal)
+    
+  lfsr_sig1$tissues_within2[i] <- paste(colnames(not_focal_df)[1:12][which(not_focal2 > -1 & not_focal2<1)], collapse = ",")
+  lfsr_sig1$focal_pm[i]<-mean(focal)
+  lfsr_sig1$other_pm[i]<-mean(t(not_focal))
 }
 
-# apply the function to each Fisher's test result
-components <- lapply(test_results_list, extract_components)
+lfsr_sig1 <- lfsr_sig1 %>%
+  rowwise() %>%
+  
+  mutate(focal_tissue = names(.)[1:12][which.min(c_across(1:12))]) %>%
+  ungroup() %>% as.data.frame()
 
-results_tests_df <- do.call(rbind, components)
-results_tests_df$tissue <- rownames(results_tests_df)
+rownames(lfsr_sig1) <- rownames_sig1
 
-# Repeat the process on variable sites for a given tissue to test the robustness of the relationship
+lfsr_sig1$site <- rownames(lfsr_sig1)
 
-# Fisher's exact test per tissue
-apply_fisher_test_variable <- function(df){
-  contingency_table <- with(df %>% filter(nonvariable == "var"), table(sign_beta, intercept_high_low_50))
-  test_result <- fisher.test(contingency_table)
-  return(test_result)
+write.table(as.data.frame(lfsr_sig1),file.path(base_path,"bedfiles","age_sharing_sig005.txt",row.names=F,sep='\t')
+
+# Export bed files with all sites directly from MASHr
+
+bed = data.frame(do.call("rbind",lapply(strsplit(gsub("Region_", "", rownames(lfsr)), split = "_", fixed=TRUE), function (x) x[1:3])))
+colnames(bed) <- c("chr","start","end")
+bed[c("start","end")]<- lapply(bed[c("start","end")], as.integer)
+bed <- bed %>% mutate(chr = paste0("chr",chr))
+
+# Export the bed file and a txt listing all the regions
+write.table(bed,base_path,"bedfiles","all_sites_age.bed", col.names = FALSE, sep="\t", row.names = FALSE, quote=FALSE)
+write.table(data.frame(regions=rownames(lfsr)),base_path,"bedfiles","all_sites_age_June25.txt", sep="\t",row.names = FALSE,quote=FALSE)
+
+# Export the bed file at the CpG site level listing all those tested for age effects
+regions_to_cpg <- read.table(base_path,"MASH","Regions","regions_to_cpgs_mapping.bed")
+
+bed_cpg <- regions_to_cpg %>% filter(paste(V1,V2,V3,sep="_") %in% paste(bed$chr,bed$start,bed$end, sep = "_")) %>%
+  dplyr::select(V4,V5,V6,V1,V2,V3)
+
+write.table(bed_cpg, base_path,"MASH","bedfiles","all_sites_age_CpG.bed", col.names = FALSE, sep="\t", row.names = FALSE, quote=FALSE)
+
+####### UPSET PLOTS
+
+library(ComplexUpset)
+library(ggpubr)
+library(scales)
+
+# Split the tissues by comma and create a list
+sigtissues_listall <- strsplit(as.character(lfsr_sig1$sig_which_tissues), ",")
+
+# Create a binary presence/absence data.frame
+tissue_matrixall <- data.frame(matrix(0, nrow = nrow(lfsr_sig1), ncol = 0))
+row.names(tissue_matrixall) <- lfsr_sig1$site
+
+for (tissue in unique(unlist(sigtissues_listall))) {
+  tissue_matrixall[[tissue]] <- as.integer(sapply(sigtissues_listall, function(x) tissue %in% x))
 }
 
-# apply function to each dataframe in the list
-test_results_list_var <- lapply(coeff_intercept_list, apply_fisher_test_variable)
+ComplexUpset::upset(tissue_matrixall, colnames(tissue_matrixall), n_intersections = 20,height_ratio = 0.9, name="", set_sizes=F,
+                    themes=upset_modify_themes( list('intersections_matrix'=theme(text=element_text(size=14)), "Intersection size"=theme(text=element_text(size=14),axis.title.y = element_text(margin = margin(t = 0, r = -10, b = 0, l = 0))))),
+                    labeller=ggplot2::as_labeller(c(
+                      "thymus"="thymus",
+                      "pituitary"="pituitary",
+                      "spleen"="spleen",
+                      'whole_blood' = 'whole blood',
+                      'omental_at'= "omental adipose",
+                      "liver"="liver",
+                      "thyroid"="thyroid",
+                      "adrenal"="adrenal",
+                      'skeletal_muscle'= "skeletal muscle",
+                      "kidney"="kidney",
+                      "lung"="lung",
+                      "heart"="heart")),
+                    base_annotations=list(
+                      'Intersection size'= (intersection_size(counts=F) + scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k"))))
+)
 
-components_var <- lapply(test_results_list_var, extract_components)
-results_tests_df_var <- do.call(rbind, components_var)
-results_tests_df_var$tissue <- rownames(results_tests_df_var)
-results_tests_df_var <- results_tests_df_var %>% dplyr::select(tissue, everything())
-
-# Export results
-results_tests_df_var <- results_tests_df_var %>%
-  mutate_at(vars(-pvalue), ~if(is.numeric(.)) round(., digits=3) else .) %>%
-  mutate(pvalue = ifelse(pvalue < 0.001, "<0.001", pvalue))
-
-results_tests_df_var <- results_tests_df_var %>% 
-  mutate(tissue = recode(tissue, "omental_at" = "omental adipose")) %>%
-  mutate(tissue = recode(tissue, "skeletal_muscle" = "skeletal muscle")) %>% 
-  mutate(tissue = recode(tissue, "whole_blood" = "whole blood"))
-
-results_tests_df_var = results_tests_df_var %>% arrange(tissue)
-rownames(results_tests_df_var)<-NULL
-
-all_coeff_af <- do.call(rbind,coeff_intercept_list)
-
-cat_young_plot <- ggplot(all_coeff_af %>% mutate(interaction = paste(sign_beta,intercept_high_low_50,"_")) %>% 
-         mutate(interaction = recode(interaction,"neg higher _"="high decreasing",
-                                            "neg lower _"="low decreasing",
-                                            "pos higher _"="high increasing",
-                                            "pos lower _"="low increasing")) %>% 
-         mutate(tissue = recode(tissue, "omental_at" = "omental adipose",
-                                "skeletal_muscle" = "skeletal muscle",
-                                "whole_blood" = "whole blood")),
-       aes(x=interaction, fill=interaction))+
-  geom_bar()+
-  labs(x="",title="A")+
-  facet_wrap(~tissue, scales = "free_y")+
-  theme_bw()+theme(legend.position = "none",
-                   plot.title = element_text(size=28),
-                   axis.title = element_text(size=12),
-                   axis.text.x = element_text(size=12,angle=45, color="black",hjust=1,vjust=1),
-                   axis.text.y = element_text(size=12, color="black"),
-                   strip.text = element_text(size = 12, face = "bold"),
-                   strip.background = element_rect(fill = "white"))
-
-# Pearson's correlation per tissue
-apply_cor_test_variable <- function(df){
-  data_cor <- df %>% filter(nonvariable == "var") %>% dplyr::select(beta,young_intercept)
-  test_result <- cor.test(data_cor$beta,data_cor$young_intercept, method="pearson")
-  return(test_result)
-}
-
-# function to extract components
-extract_corr_components <- function(test_result){
-  # Fisher's test returns a list, we will extract the components we need
-  pearson_corr <- test_result$estimate
-  pvalue <- test_result$p.value
-  # return a data frame
-  return(data.frame(pearson_corr = pearson_corr, pvalue = pvalue))
-}
-# apply function to each dataframe in the list
-cor_results_list_var <- lapply(coeff_intercept_list, apply_cor_test_variable)
-components_corr <- lapply(cor_results_list_var, extract_corr_components)
-results_corr_df_var <- do.call(rbind, components_corr)
-results_corr_df_var$tissue <- rownames(results_corr_df_var)
-results_corr_df_var <- results_corr_df_var %>% dplyr::select(tissue, everything())
-
-results_corr_df_var <- results_corr_df_var %>%
-  mutate(pearson_corr=round(pearson_corr, digits=3),pvalue = ifelse(pvalue < 0.001, "<0.001", pvalue))
-
-results_corr_df_var <- results_corr_df_var %>% 
-  mutate(tissue = recode(tissue, "omental_at" = "omental adipose")) %>%
-  mutate(tissue = recode(tissue, "skeletal_muscle" = "skeletal muscle")) %>% 
-  mutate(tissue = recode(tissue, "whole_blood" = "whole blood"))
-
-results_corr_df_var = results_corr_df_var %>% arrange(tissue)
-
-# write.table(results_corr_df_var %>% rename(`Pearson correlation`=pearson_corr,`p-value`=pvalue),
-#             "/path/to/TableS6.csv",row.names = F,quote = F)
-
-# Plot the three info: change with age, direction of tissue-specificity, and average pmeth in the population 
-coeff_intercept_list= lapply(names(coeff_intercept_list),function(x) {
-  tissue <- x
-  data <- coeff_intercept_list[[x]]
-  data$tissue <- tissue
-  return(data)
-  })
-
-testy=do.call(rbind,coeff_intercept_list)
-
-corr_plot<-ggplot(testy %>% 
-                    mutate(tissue = recode(tissue, "omental_at" = "omental adipose",
-                                           "skeletal_muscle" = "skeletal muscle",
-                                           "whole_blood" = "whole blood")),
-       aes(x=young_intercept,y=beta))+
-  geom_point(alpha=0.3)+
-  labs(x="Average percent methylation in young subjects", y = "Age-associated effect sizes", title="B")+
-  geom_hline(yintercept = 0)+
-  geom_vline(xintercept = 0.5)+
-  facet_wrap(~tissue,scales = "free_y")+
-  geom_smooth(method = "lm")+
-  theme_bw()+theme(legend.position = "none",
-                   plot.title = element_text(size=28),
-                   axis.title = element_text(size=12),
-                   axis.text.x = element_text(size=12,color="black",hjust=1,vjust=1),
-                   axis.text.y = element_text(size=12, color="black"),
-                   strip.text = element_text(size = 12, face = "bold"),
-                   strip.background = element_rect(fill = "white"))
-
-ggpubr::ggarrange(cat_young_plot,corr_plot,nrow=2)
-ggsave("/path/to/Figures/FigS9.png", width=9.5, height=12.5, dpi=300)
+ggsave(base_path,"Figures","Fig.2E.pdf")

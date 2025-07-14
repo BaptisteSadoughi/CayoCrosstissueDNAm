@@ -1,3 +1,8 @@
+# --------------------------------------
+# Load tissue-specific percent methylation matrices
+# Generate and export a UMAP colored by tissue type
+# --------------------------------------
+
 # UMAP projection
 # Useful tutorial
 # UMAP https://cran.r-project.org/web/packages/umap/vignettes/umap.html
@@ -9,8 +14,20 @@ library_list <- c("umap","RColorBrewer","svglite","tidyverse","rlang", "corrplot
 
 lapply(library_list, require, character.only=TRUE)
 
+# === Paths ===
+
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+pmeth_path <- file.path(base_path, "full_matrices","Regions_full_pmeth14.rds")
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
+
+output_path <- file.path(base_path, "UMAP")
+dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+
+# === Format methylation data ===
+
 # Percent methylation matrices of fully covered regions for each tissue
-pmeth = readRDS("/path/to/full_matrices/Regions_full_pmeth14.rds")
+pmeth = readRDS(pmeth_path)
 
 # Convert matrices to data frames for merging and create a new column with row names
 list_of_dfs <- lapply(pmeth, function(x) {
@@ -33,8 +50,9 @@ rownames(pmeth) <- pmeth$rownames
 pmeth <- pmeth %>% select(-rownames)
 pmeth = as.matrix(pmeth)
 
-# Load metadata
-metadata_lid = read.table("/path/to/multitissue_metadata.txt", sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
+# === Load metadata ===
+
+metadata_lid = read.table(metadata_path, sep = "\t", header = TRUE) %>% filter(lid_pid != "LID_109490_PID_10416")
 
 pmeth <- pmeth[,colnames(pmeth) %in% metadata_lid$lid_pid]
 
@@ -42,10 +60,10 @@ metadata_lid <- metadata_lid[match(colnames(pmeth),metadata_lid$lid_pid),]
 
 identical(colnames(pmeth), metadata_lid$lid_pid)
 
-#############################################
-#     UMAP
-#############################################
-
+# ------------------------------------------
+# === UMAP ===
+# ------------------------------------------
+<
 # Customized umap using Chiou et al. parameters https://www.nature.com/articles/s41593-022-01197-0
 umap.custom <- umap.defaults
 umap.custom$n_neighbors <- 50
@@ -63,14 +81,12 @@ for (config_name in c("defaults", "custom")) {
   umap_coords[[config_name]] <- umap_output$layout  # Extract layout output
 }
 
-### PLOTTING
+# === Color Palette ===
 
-# Define the updated color order based on desired tissue arrangement
 color_order <- c("adrenal", "heart", "kidney", "liver", "lung", "omental_at", 
                  "ovaries", "pituitary", "skeletal_muscle", "spleen", "testis", 
                  "thymus", "thyroid", "whole_blood")
 
-# Sort tissue_plot and include the new levels
 tissue_plot <- sort(c("whole_blood", "spleen", "omental_at", "heart", "kidney", 
                       "lung", "adrenal", "thymus", "thyroid", "pituitary", 
                       "liver", "skeletal_muscle"))
@@ -88,6 +104,8 @@ extended_palette <- extended_palette[color_order]
 
 # Ensure metadata uses the updated levels
 metadata_lid$grantparent_tissueType <- factor(metadata_lid$grantparent_tissueType, levels = color_order)
+
+# === Plotting Helper ===
 
 # Function to generate a discrete color palette
 get_palette <- function(n) {
@@ -108,7 +126,8 @@ get_palette <- function(n) {
   }
 }
 
-### FUNCTION for customed UMAP
+# === UMAP Plotting Function ===
+
 plot.umap = function(x, metadata, fill, shape = NULL,
                      mainTitle=TRUE,
                      main="A UMAP visualization of the dataset",
@@ -236,18 +255,18 @@ plot.umap = function(x, metadata, fill, shape = NULL,
   }
 }
 
-## Generate plot
-predictors <- c("grantparent_tissueType")
-
-if(!dir.exists("/path/to/UMAP")) dir.create("/path/to/UMAP")
+# === Generate Plot ===
+                         
+predictors <- c("tissue")
 
 for(i in predictors){
   for (config_name in names(umap_coords)) {
 
-    svglite::svglite(paste0("/path/to/UMAP/UMAP_",i,"_",config_name,".svg"))
+    svg_path <- file.path(output_path, paste0(i, "_", config_name, ".svg"))
+    svglite(svg_path)
     
     #if i is the tissues grab custom_palette otherwise set to NULL
-    if(i == "grantparent_tissueType"){
+    if(i == "tissue"){
       custom_palette=extended_palette
     } else {
         custom_palette = NULL
@@ -257,9 +276,19 @@ for(i in predictors){
     par(mfrow = c(1,1))  # Replace 1 and 2 with desired number of rows and columns
 
     layout <- umap_coords[[config_name]]
-    plot.umap(layout, metadata_lid, fill=i, shape=NULL, mainTitle = FALSE,
-              cex.axisTitle = 1.7, cex.axisText = 1.7,cex.legend=0.01,legendfill.pos = NULL,
-              main = NULL, box = FALSE, color_order = color_order, custom_palette = custom_palette)
+    plot.umap(layout,
+              metadata_lid,
+              fill=i,
+              shape=NULL,
+              mainTitle = FALSE,
+              cex.axisTitle = 1.7,
+              cex.axisText = 1.7,
+              cex.legend=0.01,
+              legendfill.pos = NULL,
+              main = NULL,
+              box = FALSE,
+              color_order = color_order,
+              custom_palette = custom_palette)
     dev.off()
   }
 }

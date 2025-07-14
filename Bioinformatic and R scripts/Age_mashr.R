@@ -388,7 +388,7 @@ bed[c("start","end")]<- lapply(bed[c("start","end")], as.integer)
 bed <- bed %>% mutate(chr = paste0("chr",chr))
 
 write.table(bed,file.path(bed_path,"all_sites_age.bed"), col.names = FALSE, sep="\t", row.names = FALSE, quote=FALSE)
-write.table(data.frame(regions=rownames(lfsr)),file.path(bed_path,"all_sites_age_June25.txt"), sep="\t",row.names = FALSE,quote=FALSE)
+write.table(data.frame(regions=rownames(lfsr)),file.path(bed_path,"all_sites_age.txt"), sep="\t",row.names = FALSE,quote=FALSE)
 
 # CpG-level bed export
 regions_to_cpg <- read.table(file.path(base_path,"Regions","regions_to_cpgs_mapping.bed"))

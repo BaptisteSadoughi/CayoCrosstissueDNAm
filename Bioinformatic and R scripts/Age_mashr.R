@@ -379,7 +379,7 @@ lfsr_sig1 <- lfsr_sig1 %>%
 rownames(lfsr_sig1) <- rownames_sig1
 lfsr_sig1$site <- rownames(lfsr_sig1)
 
-write.table(as.data.frame(lfsr_sig1),file.path(bed_path,"age_sharing_sig005.txt"),row.names=F,sep='\t')
+write.table(as.data.frame(lfsr_sig1),file.path(bed_path,"age_sharing.txt"),row.names=F,sep='\t')
 
 # === Export bed files ===
 bed = data.frame(do.call("rbind",lapply(strsplit(gsub("Region_", "", rownames(lfsr)), split = "_", fixed=TRUE), function (x) x[1:3])))

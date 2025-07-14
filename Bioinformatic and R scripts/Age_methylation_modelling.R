@@ -1,9 +1,10 @@
 #!/usr/bin/env /packages/apps/spack/18/opt/spack/gcc-11.2.0/r-4.2.2-kpl/bin/Rscript
 
-### Differential Methylation Analysis with PQLSEQ
-
-# Submit with:
-# sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 /path/to/this_script.R
+# -------------------------------------------------------------
+# Differential Methylation Analysis with PQLSEQ
+# SLURM submission command (run as array over tissues):
+# sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 base_path/Bioinformatic and R scripts/thiscript.R
+# -------------------------------------------------------------
 
 rm(list = ls())
 
@@ -17,10 +18,12 @@ lapply(library_list, require, character.only = TRUE)
 # ================
 # CONFIGURABLE PATHS
 # ================
-base_path <- "/your/base/path"
-metadata_path <- file.path(base_path, "metadata.txt")
+
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
 meth_dir <- file.path(base_path, "tissues_meth")
-kinship_path <- file.path(base_path, "wgs_kinmat.rds")
+kinship_path <- file.path(base_path, "metadata", "wgs_kinmat.rds")
 output_dir <- file.path(base_path, "PQLSEQ")
 diagnostics_dir <- file.path(output_dir, "diagnostics")
 
@@ -30,15 +33,16 @@ if (!dir.exists(diagnostics_dir)) dir.create(diagnostics_dir, recursive = TRUE)
 # =============
 # Parallel cores
 # =============
+
 n.cores <- 40
 print(paste("Using", n.cores, "cores"))
 
 # ====================
 # Tissue selection
 # ====================
-tissue_oi <- c("liver", "whole_blood", "spleen", "omental_at", "heart",
-               "ovaries", "testis", "kidney", "lung", "adrenal",
-               "thymus", "thyroid", "pituitary", "skeletal_muscle")
+
+tissue_oi <- c("liver", "whole_blood", "spleen", "omental_at", "heart","ovaries", "testis",
+               "kidney", "lung", "adrenal","thymus", "thyroid", "pituitary", "skeletal_muscle")
 
 SAMP <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 
@@ -52,6 +56,7 @@ cat("Analyzing tissue:", tissue, "\n")
 # =====================
 # Load data and metadata
 # =====================
+
 metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   mutate(percent_unique = unique / reads)
@@ -80,11 +85,13 @@ if (tissue == "skeletal_muscle") {
 # ===============
 # Load kinship matrix
 # ===============
+
 kinmat <- readRDS(kinship_path)
 
 # =========================
 # Prepare data for PQLseq
 # =========================
+
 tissue_data <- get(tissue)
 methcount <- tissue_data$methylation
 coverage  <- tissue_data$coverage
@@ -116,6 +123,7 @@ if (!identical(colnames(coverage), rownames(metadata_tissue)) ||
 # ================
 # Define covariates
 # ================
+
 age <- metadata_tissue$age
 sex_bino <- as.numeric(metadata_tissue$sex == "M")
 group_bino <- as.numeric(metadata_tissue$group == "KK")
@@ -130,6 +138,7 @@ covariates <- if (tissue %in% c("ovaries", "testis")) {
 # ==============================================
 # Remove sites with 0 coverage in either group
 # ==============================================
+
 remove_zero_coverage_sites <- function(group_label) {
   sample_ids <- rownames(metadata_tissue)[metadata_tissue$group == group_label]
   zero_rows <- rowSums(coverage[, sample_ids]) == 0
@@ -144,6 +153,7 @@ methcount <- methcount[!rownames(methcount) %in% sites_to_remove, ]
 # =============
 # Run PQLseq
 # =============
+
 fit <- PQLseq::pqlseq(
   RawCountDataSet = methcount,
   Phenotypes = age,
@@ -157,6 +167,7 @@ fit <- PQLseq::pqlseq(
 # =========================
 # Post-processing and output
 # =========================
+
 fit$chr <- str_split_i(rownames(fit), 2, "_")
 fit$start <- str_split_i(rownames(fit), 3, "_")
 fit$end <- str_split_i(rownames(fit), 4, "_")

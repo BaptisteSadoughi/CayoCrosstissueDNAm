@@ -123,9 +123,9 @@ sbatch --cpus-per-task=1 --mem=500G -p general -q public -t 1-00:00:00 base_path
 
 ## Building genomic regions
 
-CpG density based regions are generated using [Generate_CpG_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Generate_CpG_region_methylation.R). Several path and parameters must be defined at the start of the script. The output are tissue-specific methylation data saved in separate subdirectories. The script requires to source [SupportFunctions_generate_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/SupportFunctions_generate_region_methylation.R) to run helper functions.
+CpG density based regions are generated using [Generate_CpG_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Generate_CpG_region_methylation.R). Several path and parameters must be defined at the start of the script.  The script requires to source [SupportFunctions_generate_region_methylation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/SupportFunctions_generate_region_methylation.R) to run helper functions. The output are tissue-specific methylation data saved in separate subdirectories.
 
-Then, DNA methylation matrices including the subset of fully covered regions and matrices including imputed data are generated using [Percent_methylation_imputation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Percent_methylation_imputation.R).
+Matrices of fully covered regions, and imputed percent methylation values are generated using [Percent_methylation_imputation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Percent_methylation_imputation.R).
 
 ## Visualization of sample clustering with UMAP.
 [UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R). Output includes Fig.1D.

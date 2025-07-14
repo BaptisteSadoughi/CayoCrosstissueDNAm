@@ -21,7 +21,7 @@ base_path <- "/path/to/project"  # <-- Define this path only once
 pmeth_path <- file.path(base_path, "full_matrices","Regions_full_pmeth14.rds")
 metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
 
-output_path <- file.path(base_path, "UMAP")
+output_path <- file.path(base_path, "Figures")
 dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
 
 # === Format methylation data ===

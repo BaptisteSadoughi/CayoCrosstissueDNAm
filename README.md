@@ -128,10 +128,10 @@ CpG density based regions are generated using [Generate_CpG_region_methylation.R
 Matrices of fully covered regions, and imputed percent methylation values are generated using [Percent_methylation_imputation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Percent_methylation_imputation.R).
 
 ## Visualization of sample clustering with UMAP.
-[UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R). Output includes Fig.1D.
+[UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R).
 
 ## Tissue specific DNAm markers
-Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R) (Fig.1E), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R) (Fig.1F).
+Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R).
 
 ## Age-associated differential methylation
 
@@ -149,7 +149,7 @@ Age-associated sites are intersected with genomic annotations and chrommHMM stat
 sbatch base_path/Bioinformatic and R scripts/run_intersect_annotations.sh
 ```
 
-Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R). Output includes Fig.2.
+Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R).
 
 ## Tissue specific DNAm age clocks
 
@@ -159,4 +159,4 @@ Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSa
 Binomial mixed models testing for the association between each ELA and methylation levels are performed using [ELA_methylation_modelling.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_methylation_modelling.R), and effect size estimates are refined using Multivariate Adaptive Shrinkage in [ELA_mashr.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_mashr.R).
 
 ### ELA analyses
-Annotation of ELA-associated sites is perfomed following the same procedure as for age by simply modifying the input bed file. Annotation, enrichment analysis, linear models testing for the effect of tissue types on effect sizes, and comparison of age and ELA effects are all performed with [ELA_analyses](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_analyses). Output includes Figs.4&5. 
+Annotation of ELA-associated sites is perfomed following the same procedure as for age by simply modifying the input bed file. Annotation, enrichment analysis, linear models testing for the effect of tissue types on effect sizes, and comparison of age and ELA effects are all performed with [ELA_analyses](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/ELA_analyses). 

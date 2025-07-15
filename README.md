@@ -156,6 +156,13 @@ Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSa
 
 ## Tissue specific DNAm age clocks
 
+Tissue-specific Leave-One-Out age predictions are performed using [Tissue_Clocks.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissue_Clocks.R) after defining the `base_path` and numbers of cores in the script. The script is best submitted as a job, which we show with the parameters used in our analysis.
+```bash
+sbatch --cpus-per-task=15 --mem=100G -p general -q public -t 0-4 --array=1-(max sample size within one tissue) base_path/Bioinformatic and R scripts/Tissue_Clocks.R
+```
+
+Age predictions are gathered and processed using [Tissue_AgePredictions.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissue_AgePredictions.R), and within-individual heterogeneity patterns analyzed using [Withinindividual_heterogeneity](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/WithinIndividual_heterogeneity.R) and Multitissue_AgingPheno.R.
+
 ## ELA-associated differential methylation
 
 ### Modelling steps

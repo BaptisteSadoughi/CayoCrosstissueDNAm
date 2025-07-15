@@ -134,12 +134,15 @@ Matrices of fully covered regions, and imputed percent methylation values are ge
 Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R).
 
 ## Age-associated differential methylation
+Before running the scripts:
 
+1. Unzip regions_to_cpgs_mapping.zip in the folder /metadata
+   
 ### Modelling steps
 Binomial mixed models testing for the association between age and methylation levels are performed using [Age_methylation_modelling.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_methylation_modelling.R), and effect size estimates are refined using Multivariate Adaptive Shrinkage in [Age_mashr.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_mashr.R).
 
 ### Annotation and enrichment
-Before running the scripts:
+Before running the script [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh):
 
 1. Set the path to your central directory (`base_path`) inside the script.
 2. Download annotation files into a subdirectory (`base_path/annotations`)

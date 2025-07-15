@@ -149,7 +149,7 @@ Before running the script [script_annotating_sites.sh](https://github.com/Baptis
    
 Age-associated sites are intersected with genomic annotations and chrommHMM states using [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh).
 ```bash
-sbatch base_path/Bioinformatic and R scripts/run_intersect_annotations.sh
+sbatch base_path/Bioinformatic and R scripts/script_annotating_sites.sh
 ```
 
 Analyses are then performed using [Age_analysis.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_analysis.R).

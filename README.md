@@ -131,6 +131,8 @@ Matrices of fully covered regions, and imputed percent methylation values are ge
 [UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R).
 
 ## Tissue specific DNAm markers
+Tissue-specific differential methylation is tested using binomial mixed models with [DNAm_Tissuemarkers.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/DNAm_Tissuemarkers.R). Output can be concatenated using Combine_tissuemarkers.R.
+
 Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R).
 
 ## Age-associated differential methylation

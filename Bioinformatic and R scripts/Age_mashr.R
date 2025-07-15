@@ -391,7 +391,7 @@ write.table(bed,file.path(bed_path,"all_sites_age.bed"), col.names = FALSE, sep=
 write.table(data.frame(regions=rownames(lfsr)),file.path(bed_path,"all_sites_age.txt"), sep="\t",row.names = FALSE,quote=FALSE)
 
 # CpG-level bed export
-regions_to_cpg <- read.table(file.path(base_path,"Regions","regions_to_cpgs_mapping.bed"))
+regions_to_cpg <- read.table(file.path(base_path,"metadata","regions_to_cpgs_mapping.bed"))
 
 bed_cpg <- regions_to_cpg %>%
            filter(paste(V1,V2,V3,sep="_") %in% paste(bed$chr,bed$start,bed$end, sep = "_")) %>%

@@ -1,10 +1,11 @@
 #!/usr/bin/env /packages/apps/spack/18/opt/spack/gcc-11.2.0/r-4.2.2-kpl/bin/Rscript
 
-#submit using: sbatch --cpus-per-task=10 --mem=100G -p general -q public -t 0-4 --array=1-(max sample size within one tissue) /path/to/thiscript
-
-# The aim is to split a list of percent methylation matrices per tissue of interest
-# and run a LOOCV for each tissue.
-# The output are single_sample-single_alpha files saved in subfolders for each tissue.
+# ==============================================================================
+# Leave One Out Age Prediction
+# SLURM submission command (run as array over samples):
+# submit using: sbatch --cpus-per-task=10 --mem=100G -p general -q public -t 0-4 --array=1-(max sample size within one tissue) base_path/Bioinformatic and R scripts/thiscript.R
+# Produces: single_sample-single_alpha files saved in tissue specific subfolders.
+# ==============================================================================
 
 rm(list = ls())
 
@@ -15,12 +16,15 @@ num_cores <- 15 #number of cores to use for parallel tasks (tissue+1 is good)
 
 maturity <- 5 #set age at maturity for non-linear relationship
 
-#---------------------------------------------------------------------
-# LOAD METHYLATION DATA AND METADATA
-#---------------------------------------------------------------------
-file_name<-("/path/to/full_matrices/Regions_full_pmeth14.rds")
+base_path <- "/path/to/your/directory" # <- set this path once
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
 
-# Read in data
+# -------------------
+# === LOAD METHYLATION DATA AND METADATA ===
+# -------------------
+
+# Load methylation data
+file_name <- file.path(base_path, "full_matrices","Regions_full_pmeth14.rds")
 pmeth <- readRDS(file_name)
 
 # Remove one flawed sample
@@ -29,16 +33,13 @@ pmeth$skeletal_muscle <- pmeth$skeletal_muscle[,-which(colnames(pmeth$skeletal_m
 # keep autosomes only (run call) or all chr (mute call)
 pmeth <- lapply(pmeth,function(x) x[!grepl("Region_X|CpG_X",rownames(x)), ,drop = FALSE])
 
-# Read in metadata info with known chronological ages/sex and technical variables.
-metadata_lid = read.table("/path/to/metadata_final.txt", sep = "\t", header = TRUE) %>% filter(lid_pid !="LID_109490_PID_10416")
+# Load metadata
+meta <- read.table(metadata_path, sep = "\t", header = TRUE) %>% 
+                filter(lid_pid !="LID_109490_PID_10416") %>% 
+                dplyr::select(lid_pid, age, monkey_id, tissue)
 
-# Simplify metadata for glmnet
-meta <- meta %>% dplyr::select(lid_pid,age_at_sampling,monkey_id,grantparent_tissueType)
-
-# Keep in metadata only tissues and lid_pid matching the methylation data
+# Match metadata and methylation data
 meta <- meta[meta$grantparent_tissueType %in% names(pmeth), ]
-
-# Get unique colnames from all matrices in pmeth
 all_colnames <- unique(unlist(lapply(pmeth, colnames)))
 meta <- meta[meta$lid_pid %in% all_colnames, ]
 
@@ -51,17 +52,13 @@ for(tissue_value in names(pmeth)){
 }
 
 # Confirm absence of NAs for the elastic net regression.
-pmeth <- lapply(pmeth, function(x){
-  mat <- x
-  mat <- mat[complete.cases(mat),,drop = FALSE]
-  return(mat)
-})
+pmeth <- lapply(pmeth, function(x) x[complete.cases(mat), , drop = FALSE])
 
-#----------------------------------------------
-# Transformation of age
-#----------------------------------------------
-# Transform age according to age at sexual maturity
-# based on Horvath 2013 https://genomebiology.biomedcentral.com/articles/10.1186/gb-2013-14-10-r115#MOESM2
+# -------------------
+# === AGE TRANSFORMATION ===
+# -------------------
+
+# Horvath (2013)-style transformation https://genomebiology.biomedcentral.com/articles/10.1186/gb-2013-14-10-r115#MOESM2
 Fage = Vectorize(function(x){
   if (is.na(x) | is.na(maturity)) {return(NA)}
   k <- 0
@@ -70,10 +67,10 @@ Fage = Vectorize(function(x){
   else {y = (x-maturity)/(maturity+k)}
   return(y)
 })
-## Inverse log linear transformation
+                
+## Inverse transformation
 F.inverse= Vectorize(function(y) {
   if (is.na(y) | is.na(maturity)) {return(NA)}
-
   k <- 0
   x <- 0
   if (y < 0) {x = (maturity+k)*exp(y)-k}
@@ -81,66 +78,51 @@ F.inverse= Vectorize(function(y) {
   return(x)
 })
 
-#--------------------------------------------------
-# Elastic net model
-#--------------------------------------------------
+# -------------------
+# === ELASTIC NET MODEL ===
+# -------------------
 
-# Store the different tissues
 tissues <- names(pmeth)
 
 # run tissues in parallel independently
-parallel::mclapply(tissues,function(tissue){
+parallel::mclapply(tissues, function(tissue) {
   
-  # extract methylation data and lid_pid for one tissue
   epi <- pmeth[[tissue]]
-  meta_s <- meta[meta$grantparent_tissueType == tissue,]
+  meta_s <- meta[meta$tissue == tissue, ]
   
-  SAMP <- Sys.getenv("SLURM_ARRAY_TASK_ID")
-  SAMP <- as.integer(SAMP)
- 
-    # for (SAMP in 1:ncol(epi)) { #loop can be used to run the code interactively
-  # Remove test subject(s)
-  # SAMP indexes from 1 to N samples
+  SAMP <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+    
+  # Define training and test sets
   train <- epi[, -SAMP]
   test <- epi[, SAMP]
-  
-  # Create a vector of training and test ages for elastic net model construction
-  trainage <- meta_s$age_at_sampling[-SAMP]
-  testage <- meta_s$age_at_sampling[SAMP]
+  trainage <- meta_s$age[-SAMP]
+  testage <- meta_s$age[SAMP]
   test_id <- meta_s$monkey_id[SAMP]
   test_lid <- meta_s$lid_pid[SAMP]
   
-  # Create a vector of alphas to test (0=ridge coeff are shrunk towards each other, 1=lasso coeff are shrunk to 0)
+  # Alphas values (0=ridge coeff are shrunk towards each other, 1=lasso coeff are shrunk to 0)
   alphas <- seq(0, 1, by = 0.1)
 
   for (alph in alphas) {
     
-    # Using N-fold internal CV, train the elastic net model using the training data
-
-    ## Transpose the train matrix to be samples x features
+    # IMPORTANT matrices must be samples (rows) x loci (columns)
     
     if(exists("Fage", envir = .GlobalEnv) & exists("F.inverse", envir = .GlobalEnv)){
-      # if the age transformation is loaded in the environment use it
     model <- cv.glmnet(t(train), Fage(trainage), type.measure = "mse", nfolds = 10, alpha = alph, standardize = FALSE) # with age transformation
     } else {
-      # otherwise set the model without
     model <- cv.glmnet(t(train), trainage, type.measure = "mse", nfolds = 10, alpha = alph, standardize = FALSE)
     }
     
-    # Predict age using the test sample from parameters that minimized MSE during internal CV
+    # Predict age of the test sample with parameters that minimized MSE during internal CV
     if(exists("Fage", envir = .GlobalEnv) & exists("F.inverse", envir = .GlobalEnv)){
     predicted <- F.inverse(predict(model, newx = t(test), type = "response", s = "lambda.min")) # with age transformation
     } else {
     predicted <- predict(model, newx = t(test), type = "response", s = "lambda.min")
     }
     
-    ## Add monkey_id and LID info
-    predicted_out <- c(test_id, test_lid, testage, predicted)
-    
-    ## Transpose so that it writes out as one row of information
-    predicted_out <- t(predicted_out)
+    predicted_out <- t(c(test_id, test_lid, testage, predicted))
         
-    path_p <- file.path(".", "predicted_age", tissue)
+    path_p <- file.path(base_path, "predicted_age", tissue)
 
     if (!dir.exists(paths = path_p)) dir.create(path_p, recursive = TRUE)
 

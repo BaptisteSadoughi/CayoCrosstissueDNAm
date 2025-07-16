@@ -111,7 +111,7 @@ Process methylation coverage files using [generate_bsseq.R](https://github.com/B
 ### Prerequisites and Setup:
 Before running the script:
 
-1. Set the path to your central directory (`base_path`) inside the script.
+1. Set the path to your central directory (`base_path`) inside the script. **Note** This prerequisites applies to most scripts.
 2. Ensure the macaque genome FASTA file is available and the path to it is correctly set in the script (`mmul10_fa`).
 3. Required R packages: `Biostrings`, `bsseq`.
 

@@ -324,19 +324,18 @@ coeff_intercept_list <- readRDS(file.path(bed_path,"tissue_age_associated_sites_
 allsites_age <- read.table(file.path(bed_path,"all_sites_age.txt"), header=TRUE)
 
 # Load all sites tested for tissue markers                               
-for(i in tissue_oi){
-  filename <- gsub("XXX",i,file.path(base_path,"Regions","tissues_meth","XXX_meth","Regions_pmeth_full_XXX_1000_14T.rds"))
-  r <- readRDS(filename)
-  cov<-r$coverage
-  assign(paste(i, "cov", sep="_"), cov)
-}
-dfs <- list(liver_cov, kidney_cov, lung_cov, heart_cov, omental_at_cov, spleen_cov, adrenal_cov, thymus_cov, thyroid_cov, pituitary_cov, whole_blood_cov, skeletal_muscle_cov)  # Add all 12 dataframes to this list
+dfs <- lapply(tissue_oi, function(tissue) {
+  file_path <-  gsub("XXX", i, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
+  readRDS(file_path)$coverage
+})
+
+names(dfs) <- tissue_oi
 
 # Find shared row names across all dataframes                              
 allsites_markers <- Reduce(intersect, lapply(dfs, rownames)) #179,969 sites measured across all 12 tissues
-markers_tested_for_age <- intersect(allsites_markers,allsites_age$regions)
+markers_tested_for_age <- intersect(allsites_markers, allsites_age$regions)
 tDMR_filtered <- tDMR %>% filter(sites %in% markers_tested_for_age)
-
+                                     
 # === Build data with merged tissue markers and aDMRs ===
 
 # Combine all aDMRs into one dataframe

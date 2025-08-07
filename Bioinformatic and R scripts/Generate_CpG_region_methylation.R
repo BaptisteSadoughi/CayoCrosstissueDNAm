@@ -11,7 +11,7 @@
 
 rm(list = ls())
 
-# sbatch --cpus-per-task=22 --mem=300G -p general -q public -t 0-08:00:00 --mail-user=sbaptis7@asu.edu --mail-type=ALL /path/to/Generate_CpG_region_methylation.R
+# sbatch --cpus-per-task=22 --mem=300G -p general -q public -t 0-08:00:00 --mail-type=ALL /path/to/Generate_CpG_region_methylation.R
 
 library_list <- c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures","tidyverse","comethyl","parallel","purrr","DelayedMatrixStats")
 

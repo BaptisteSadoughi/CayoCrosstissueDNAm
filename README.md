@@ -128,7 +128,7 @@ CpG density based regions are generated using [Generate_CpG_region_methylation.R
 Matrices of fully covered regions, and imputed percent methylation values are generated using [Percent_methylation_imputation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Percent_methylation_imputation.R).
 
 ## Assessment of sample clustering by tissue types
-Signatures of tissue indentity in methylation profiles were assessed using three complementary approach: UMAP, hierarchical clustering, and categorical classification.
+The ability to determine tissue identity based on methylation profiles was assessed using three complementary approach: UMAP, hierarchical clustering, and categorical classification.
 
 [UMAP_dimensionality_reduction.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/UMAP_dimensionality_reduction.R).
 

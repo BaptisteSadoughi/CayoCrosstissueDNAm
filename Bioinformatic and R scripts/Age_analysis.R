@@ -4,7 +4,7 @@
 
 rm(list = ls())
 
-library_list <- c("corrplot","svglite","tidyverse","RColorBrewer","ggpubr")
+library_list <- c("corrplot","svglite","tidyverse","RColorBrewer","ggpubr","GenomicRanges")
 lapply(library_list, require, character.only=TRUE)
 
 # === Paths ===
@@ -14,8 +14,16 @@ bed_path <- file.path(base_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
 
 # === Color theme ===
+
 tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle"))
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
+
+new_levels <- c("ovaries", "testis")
+
+new_colors <- c("#008B8B", "#4682B4")
+
+tissue_plot <- c(tissue_plot, new_levels)
+extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 
 # === Tissues of interest ===
 tissue_oi <- c("whole_blood","spleen","omental_at","heart","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle")
@@ -36,7 +44,7 @@ read_region_file <- function(filepath) {
 # === Load annotated region files excluding chromHMM ===
 
 region_files <- list.files(path = bed_path, pattern = "all_sites_age") %>%
-  grep(pattern = "chromHMM", value = TRUE, invert = TRUE)
+  grep(pattern = "chromHMM|repeatmasker", value = TRUE, invert = TRUE)
 
 regionFiles <- lapply(region_files, function(f) read_region_file(file.path(bed_path, f)))
 names(regionFiles) <- gsub(".bed", "", region_files)
@@ -47,18 +55,55 @@ regionToCpG <- read.table(file.path(bed_path, "all_sites_age_CpG.bed"), header =
   mutate(site = paste(V1, V2, V3, sep = "_"))
 
 # Add blank columns for each region type and then add 1's where the site is in that region (both DMsites and non-DMsites)
-reg_regions <- c("gene_body", "promoters", "cgIslands", "unassigned")
-regionToCpG <- regionToCpG %>% mutate(!!!setNames(as.list(rep(0, length(reg_regions))), reg_regions))
+annotation_names <- c("gene_body", "promoters", "cgIslands", "unassigned")
+regionToCpG <- regionToCpG %>% mutate(!!!setNames(as.list(rep(0, length(annotation_names))), annotation_names))
 
-# Assign 1 if site falls within region
-regionToCpG <- regionToCpG %>%
-  mutate(
-    cgIslands = if_else(site %in% regionFiles[[1]]$site, 1, cgIslands),
-    gene_body = if_else(site %in% regionFiles[[2]]$site, 1, gene_body),
-    promoters = if_else(site %in% regionFiles[[3]]$site, 1, promoters),
-    unassigned = if_else(gene_body == 0 & promoters == 0 & cgIslands == 0, 1, 0)
-  )
+# Fill with 1 if site is in the region
 
+regionFiles_named <- setNames(regionFiles, names(regionFiles))
+
+cpgislands <- regionFiles_named[["cpgislands"]]
+genes <- regionFiles_named[["genes"]]
+promoters <- regionFiles_named[["promoters"]]
+
+## Regions
+gr_regions <- GRanges(
+  seqnames = regionToCpG$V1,
+  ranges   = IRanges(start = regionToCpG$V2,
+                     end   = regionToCpG$V3)
+)
+
+## CpG sites (single-base ranges)
+gr_islands <- GRanges(
+  seqnames = cpgislands$chr,
+  ranges   = IRanges(start = cpgislands$start,
+                     end   = cpgislands$end)
+)
+hits <- findOverlaps(gr_regions, gr_islands)
+regionToCpG$cgIslands[unique(queryHits(hits))] <- 1L
+
+## Gene body (single-base ranges)
+gr_genes <- GRanges(
+  seqnames = genes$chr,
+  ranges   = IRanges(start = genes$start,
+                     end   = genes$end)
+)
+hits_genes <- findOverlaps(gr_regions, gr_genes)
+regionToCpG$gene_body[unique(queryHits(hits_genes))] <- 1L
+
+## Promoter2kb (single-base ranges)
+gr_promoters <- GRanges(
+  seqnames = promoters$chr,
+  ranges   = IRanges(start = promoters$start,
+                     end   = promoters$end)
+)
+hits_promoters <- findOverlaps(gr_regions, gr_promoters)
+regionToCpG$promoters[unique(queryHits(hits_promoters))] <- 1L
+
+regionToCpG[regionToCpG$gene_body == 0 & regionToCpG$promoters == 0 &
+               regionToCpG$cgIslands == 0,]$unassigned <- 1L
+                      
+                      
 # === Load age-associated sites ===
 
 sigsites <- read.table(file.path(bed_path, "age_sharing.txt"), header = TRUE) %>%
@@ -92,7 +137,7 @@ perform_enrichment <- function(region_col, sig_col) {
 
 # Run enrichment tests for each region and direction
 enrichments <- function(sig_col) {
-  map_dfr(reg_regions, ~ {
+  map_dfr(annotation_names, ~ {
     perform_enrichment(regionToCpG[[.x]], regionToCpG[[sig_col]]) %>%
       mutate(type = .x)
   })
@@ -127,7 +172,7 @@ plot_enrichment <- function(df, title) {
 enrich_hyper <- plot_enrichment(allenrich_pos, "A")
 enrich_hypo <- plot_enrichment(allenrich_neg, "B")
 
-ggpubr::ggarrange(enrich_hyper, enrich_hypo, align = "v")
+enrich_combined_plot <- ggpubr::ggarrange(enrich_hyper, enrich_hypo, align = "v")
 ggsave(file.path(figure_path,"FigS4.pdf"), enrich_combined_plot, width=7.5, height=7.5)
 
 # Export combined results Table S7
@@ -138,7 +183,7 @@ all_res <- bind_rows(allenrich_neg, allenrich_pos) %>%
 # === ENRICHEMENT OF CHROMMHMM STATES ===
 # -----------------------------------
 
-rm(list = setdiff(ls(), c("base_path", "bed_path", "figure_path", "reg_regions", "perform_enrichment", "enrichments", "plot_enrichment","sigsites",
+rm(list = setdiff(ls(), c("base_path", "bed_path", "figure_path", "annotation_names", "perform_enrichment", "enrichments", "plot_enrichment","sigsites",
                           "tissue_plot","extended_palette", "tissue_oi")))
 
 # === Load chromHMM annotated bed files ===
@@ -315,7 +360,9 @@ ggsave(file.path(figure_path,"Fig2B.pdf"), width=7.5,height=7.5)
 # === Load tissue markers and age DMRs ===
                                      
 # Load tissue markers                            
-tDMR <- read.table(file.path(base_path,"tissue_markers","tissuespecific_methylation.txt"),header=TRUE)
+tDMR <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
+
+tDMR <- tDMR %>% rename(sites = region)
 
 # Load the list of age-associated sites for all tissues (i.e., any sites that passed the lfsr in that tissue)                             
 coeff_intercept_list <- readRDS(file.path(bed_path,"tissue_age_associated_sites_list.rds"))
@@ -325,49 +372,38 @@ allsites_age <- read.table(file.path(bed_path,"all_sites_age.txt"), header=TRUE)
 
 # Load all sites tested for tissue markers                               
 dfs <- lapply(tissue_oi, function(tissue) {
-  file_path <-  gsub("XXX", i, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
+  file_path <-  gsub("XXX", tissue, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
   readRDS(file_path)$coverage
 })
 
 names(dfs) <- tissue_oi
 
-# Find shared row names across all dataframes                              
+## Find shared row names across all dataframes
 allsites_markers <- Reduce(intersect, lapply(dfs, rownames)) #179,969 sites measured across all 12 tissues
-markers_tested_for_age <- intersect(allsites_markers, allsites_age$regions)
-tDMR_filtered <- tDMR %>% filter(sites %in% markers_tested_for_age)
-                                     
-# === Build data with merged tissue markers and aDMRs ===
 
-# Combine all aDMRs into one dataframe
-aDMRs <- do.call(rbind, coeff_intercept_list)
+# We can only test for the effect of age on tissue markers that were included in allsites_markers in the first place
+markers_tested_for_age <- intersect(allsites_markers,allsites_age$regions)
 
-# Merge tissue markers with age markers
-tDMR_aDMR <- merge(tDMR_filtered, aDMRs, by.x=c("sites", "sig_tissue"),
-                   by.y=c("region", "tissue"), all.x=TRUE)
+tDMR_aDMR <- tDMR %>% filter(sites %in% markers_tested_for_age)
 
-# Annotate aDMR
-tDMR_aDMR <- tDMR_aDMR %>%
-  mutate(aDMR = ifelse(is.na(beta), 0, 1),
-         beta_age = beta,
-         beta_marker = mean_beta,
-         tissue_marker = sig_tissue,
-         sign_beta_age = sign_beta) %>%
-  select(-beta, -sign_beta, -mean_beta, -sig_tissue, -young_intercept, -pop_intercept, -intercept_high_low_50, -nonvariable)
-
-# === Fisher test to determine enrichment ===
+setdiff(allsites_age$regions,allsites_markers) # All sites tested for age-association were included in the test for markers so we can merge the data taking allsites_age as the reference
 
 res_list <- lapply(coeff_intercept_list, function(x){
+  
   result <- allsites_age %>% left_join(x %>%
-                                  dplyr::select(region, beta, sign_beta),
-                                join_by(regions==region)) %>% 
-  dplyr::rename(beta_age=beta,sign_beta_age=sign_beta) %>%
-  mutate(tissue=unique(x$tissue)) %>% 
-  merge(.,tDMR_filtered, by.x=c("regions", "tissue"), by.y=c("sites","sig_tissue"),
-        all.x=TRUE) %>% 
-  mutate(aDMR = ifelse(is.na(beta_age),0,1),
-         tDMR = ifelse(is.na(mean_beta),0,1))
+                                         dplyr::select(region, beta, sign_beta),
+                                       join_by(regions==region)) %>% 
+    dplyr::rename(beta_age=beta,sign_beta_age=sign_beta) %>%
+    mutate(tissue=unique(x$tissue)) %>% 
+    merge(.,tDMR_aDMR, by.x=c("regions", "tissue"), by.y=c("sites","sig_tissue"),
+          all.x=TRUE) %>% 
+    mutate(aDMR = ifelse(is.na(beta_age),0,1),
+           tDMR = ifelse(is.na(mean_beta),0,1))
   return(result)
-})
+}
+)
+
+# === Fisher test to determine enrichment ===
 
 fisher_list <- lapply(res_list, function(x){
   cbinding <- table(x$aDMR, x$tDMR)  
@@ -378,7 +414,7 @@ fisher_list <- lapply(res_list, function(x){
   return(spe_enrich)
 })
 
-tissues_spe_enrich<- as.data.frame(do.call(rbind, fisher_list))
+tissues_spe_enrich <- as.data.frame(do.call(rbind, fisher_list))
 colnames(tissues_spe_enrich)<-c("pvalue", "conf.low", "conf.high", "OR", "null", "sided", "method", "table", "tissue")
 
 # === Table S8 ===
@@ -421,6 +457,34 @@ ggplot(data=tissues_spe_enrich, aes(x=tissue, y=log2(OR), color=tissue)) +
         axis.title.x = element_blank())
 ggsave(file.path(figure_path, "Fig2G.pdf"), width=6,height=5)
 
+# Proportion of markers affected by age changes
+tDMR_aDMR %>% group_by(tissue_marker) %>% 
+  summarize(prop_affected = sum(aDMR)/length(aDMR),
+            number_tDMR = length(aDMR),
+            number_changing_with_age = sum(aDMR)) %>% 
+  filter(!tissue_marker %in%  c("testis","ovaries")) %>% 
+  arrange(prop_affected) -> tissuespe_proportion_changing_tDMRs
+
+
+tissuespe_proportion_changing_tDMRs %>% 
+  ggplot(., aes(x=tissue_marker, y = prop_affected, fill = tissue_marker))+
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values=extended_palette)+
+  labs(x="", y="proportion of tissue markers exhibiting\nage-associated differences in % methylation")+
+  theme_bw()+
+  theme(axis.text.x=element_text(size=14, angle=45, vjust=1, hjust = 1, color="black"),
+        axis.text.y=element_text(size=14, color="black"),
+        axis.title = element_text(size=14, color="black"),
+        strip.background = element_rect(fill="white"),
+        strip.text = element_text(size=12, face="bold"))+
+  guides(fill="none")
+
+# Summary across tissues
+tDMR_aDMR %>% 
+  group_by(tissue_marker) %>% 
+  summarize(prop_affected = sum(aDMR)/length(aDMR)) %>% 
+  summarize(av=mean(prop_affected),sd=sd(prop_affected))
+                                     
 # === FigS7 ===
                                      
 ggplot(tDMR_aDMR, aes(x = beta_marker, y = beta_age)) +

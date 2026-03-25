@@ -1,7 +1,7 @@
 #=====================================================================
 #
 # Tissue Classification using Multinomial GLMNET
-# submit using: sbatch --cpus-per-task=10 --mem=100G -p htc -q public -t 0-4 --array=1-14  base_path/Bioinformatic and R scripts/thiscript.R
+# submit using: sbatch --cpus-per-task=10 --mem=100G -p htc -q public -t 0-4 --array=1-14  base_path/Bioinformatic and R scriptsTissue_classification_glmnet.R
 #=====================================================================
 
 # User Configuration - Modify these paths as needed
@@ -19,7 +19,7 @@ max_per_batch <- 250
 # Set seed for reproducibility
 set.seed(1003)
 
-# Load required libraries
+# Load libraries
 library_list <- c("glmnet","tidyverse","dplyr","parallel","stringr")
 lapply(library_list, require, character.only = TRUE)
 

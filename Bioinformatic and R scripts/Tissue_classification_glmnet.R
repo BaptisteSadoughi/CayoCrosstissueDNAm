@@ -13,7 +13,7 @@ tissue_oi <- NULL
 #                "lung", "adrenal", "thymus", "thyroid", "liver", "skeletal_muscle")
 
 # Cross-validation parameters
-n_batches     <- 14 
+n_batches     <- 10
 max_per_batch <- 250
 
 # Set seed for reproducibility

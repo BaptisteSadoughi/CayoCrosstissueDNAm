@@ -38,7 +38,6 @@ extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 base_path <- "/path/to/your/directory" # <-- set the path once
 
 figure_path <- file.path(base_path, "Figures")
-tissuemarker_path <- file.path(base_path, "tissue_comparisons", "tissuespecific_methylation.txt")
 
 # Load the concatenated list of tissue markers from Table S4
 tissue_markers <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")

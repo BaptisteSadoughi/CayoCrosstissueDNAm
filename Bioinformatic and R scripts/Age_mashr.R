@@ -16,56 +16,101 @@ mash_path <- file.path(base_path, "MASH")
 bed_path <- file.path(mash_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
 
-if (!dir.exists(paths = mash_path)) dir.create(mash_path, recursive = TRUE, showWarnings = FALSE)
-if (!dir.exists(paths = bed_path)) dir.create(bed_path, recursive = TRUE, showWarnings = FALSE)
+if (!dir.exists(mash_path)) dir.create(mash_path, recursive = TRUE, showWarnings = FALSE)
+if (!dir.exists(bed_path)) dir.create(bed_path, recursive = TRUE, showWarnings = FALSE)
+if (!dir.exists(figure_path))dir.create(figure_path, recursive = TRUE, showWarnings = FALSE)
 
 # === Tissues of interest ===
 tissue_oi <- c("whole_blood", "spleen", "omental_at", "heart", "testis", "ovaries", "kidney", "lung", "adrenal", "thymus", "thyroid", "pituitary", "liver", "skeletal_muscle")
 
+# === Centralized tissue naming ===
+tissue_labels <- c(
+  "whole_blood" = "whole blood",
+  "omental_at" = "omental adipose",
+  "skeletal_muscle" = "skeletal muscle"
+)
+
+rename_tissues_vec <- function(x) recode(x, !!!tissue_labels)
+
+rename_tissues_mat <- function(mat) {
+  colnames(mat) <- rename_tissues_vec(colnames(mat))
+  rownames(mat) <- rename_tissues_vec(rownames(mat))
+  mat
+}
+
 # --- Significance threshold ---
 lfsr_threshold <- 0.05
 
-vars_to_keep <- c("base_path", "pqlseq_path", "metadata_path", "mash_path", "bed_path", "lfsr_threshold", "tissue_oi")
+vars_to_keep <- c(
+  "base_path", "pqlseq_path", "metadata_path", "mash_path", "bed_path",
+  "figure_path",
+  "lfsr_threshold", "tissue_oi",
+  "tissue_labels", "rename_tissues_vec", "rename_tissues_mat"
+)
 
-# -----------------------------------
+# === Function to compute pearson correlation among sites sig in at least one tissue ===
+get_pearson_matrix <- function(beta, lfsr, lfsr_thresh = 0.05) {
+  
+  stopifnot(is.matrix(beta), is.matrix(lfsr), all(dim(beta) == dim(lfsr)))
+  
+  C <- ncol(beta)
+  out <- matrix(NA_real_, C, C, dimnames = list(colnames(beta), colnames(beta)))
+  
+  for (i in seq_len(C)) {
+    for (j in seq_len(C)) {
+      
+      # Rows significant in at least one column
+      sig <- (lfsr[, i] < lfsr_thresh) | (lfsr[, j] < lfsr_thresh)
+      
+      if (!any(sig, na.rm = TRUE)) {
+        out[i, j] <- NA
+        next
+      }
+      
+      b1 <- beta[sig, i]
+      b2 <- beta[sig, j]
+      
+      # correlation
+      corr_regions <- cor(b1, b2, use = "pairwise.complete.obs")
+      
+      out[i, j] <- corr_regions
+    }
+  }
+  
+  out
+}
+
+# =============================================================================
 # === CONSTRUCT MATRICES FOR MASHr ===
-# -----------------------------------
-
-# === Load PQLSEQ data into environment ===
+# =============================================================================
 
 read_table_and_rownames <- function(tissue) {
-  pqlseq <- read.table(file.path(pqlseq_path, paste0("bed_", tissue, ".txt")), sep = "\t", header = TRUE)
-  rownames(pqlseq) <- pqlseq$sites
-  return(pqlseq)
+  df <- read.table(file.path(pqlseq_path, paste0("bed_", tissue, ".txt")),
+                   sep = "\t", header = TRUE)
+  rownames(df) <- df$sites
+  df
 }
 
-data_list <- lapply(tissue_oi, read_table_and_rownames)
-names(data_list) <- paste("pqlseq", tissue_oi, sep = "_")
-list2env(data_list, envir = .GlobalEnv)
+data_list <- setNames(lapply(tissue_oi, read_table_and_rownames), tissue_oi)
 
-# === Build matrices ===
-
-fill_matrix <- function(column) {
-  # get all rownames from all dataframes
-  all_rownames <- unique(unlist(lapply(tissue_oi, function(x) row.names(get(paste("pqlseq", x, sep = "_"))))))
-
-  # initialize matrix with NA values
-  matrix_data <- matrix(NA, nrow = length(all_rownames), ncol = length(tissue_oi))
-  rownames(matrix_data) <- all_rownames
-  colnames(matrix_data) <- tissue_oi
-
-  # loop through each dataframe and fill matrix_data
-  for (tissue in tissue_oi) {
-    df <- get(paste("pqlseq", tissue, sep = "_"))
-    matrix_data[rownames(df), tissue] <- df[[column]]
+fill_matrix <- function(column, data_list) {
+  all_rownames <- unique(unlist(lapply(data_list, rownames)))
+  
+  mat <- matrix(NA, nrow = length(all_rownames), ncol = length(data_list),
+                dimnames = list(all_rownames, names(data_list)))
+  
+  for (tissue in names(data_list)) {
+    df <- data_list[[tissue]]
+    mat[rownames(df), tissue] <- df[[column]]
   }
-  return(matrix_data)
+  mat
 }
 
-matrix_beta <- fill_matrix("beta")
-matrix_SE <- fill_matrix("se_beta")
+matrix_beta <- fill_matrix("beta", data_list)
+matrix_SE   <- fill_matrix("se_beta", data_list)
 
-saveRDS(list(matrix_beta=matrix_beta, matrix_SE = matrix_SE), file.path(pqlseq_path, "pre_MASH_effects.RDS"))
+saveRDS(list(matrix_beta = matrix_beta, matrix_SE = matrix_SE),
+        file.path(pqlseq_path, "pre_MASH_effects.RDS"))
 
 # -----------------------------------
 # === MASHr ===
@@ -80,42 +125,43 @@ pqlseq_effects$matrix_beta <- subset(pqlseq_effects$matrix_beta, select = -c(tes
 pqlseq_effects$matrix_SE <- subset(pqlseq_effects$matrix_SE, select = -c(testis, ovaries))
 pqlseq_effects <- lapply(pqlseq_effects, function(x) x[complete.cases(x), ])
   
-data = mash_set_data(pqlseq_effects$matrix_beta, pqlseq_effects$matrix_SE)
+data <- mash_set_data(pqlseq_effects$matrix_beta, pqlseq_effects$matrix_SE)
 
 # === Strong set ===
                          
 tissue_files <- list.files(pqlseq_path, pattern = ".txt", full.names = TRUE)
-strong_subset_list <- list()
-for(file in tissue_files) {
+                         
+strong_subset_list <- lapply(tissue_files, function(file) {
   bed_data <- read.table(file, header = TRUE)
-  filtered_data <- bed_data[bed_data$qval < quantile(bed_data$qval, 0.01),] # Filter rows for qval < 0.001
-  tissue_name <- gsub("\\.txt$", "", basename(file))
-  strong_subset_list[[tissue_name]] <- filtered_data$site
-}
+  bed_data$sites[bed_data$qval < quantile(bed_data$qval, 0.01)]
+})
 
-strong_subset_list <- strong_subset_list[!names(strong_subset_list) %in% c("bed_testis", "bed_ovaries")]
+names(strong_subset_list) <- gsub("\\.txt$", "", basename(tissue_files))
+
+strong_subset_list <- strong_subset_list[!names(strong_subset_list) %in% c("bed_testis","bed_ovaries")]
+
 strong_subset <- Reduce(union, strong_subset_list)
-strong_subset <- intersect(rownames(pqlseq_effects$matrix_beta),strong_subset)
+strong_subset <- intersect(rownames(pqlseq_effects$matrix_beta), strong_subset)
 
 # === Estimate background correlation ===
 
-Vhat = estimate_null_correlation_simple(data)
+Vhat <- estimate_null_correlation_simple(data)
 
 # === Update mash objects with correlation structure ===
                          
-data.cor = mash_update_data(data, V=Vhat)
-data.strong.cor = mash_set_data(pqlseq_effects$matrix_beta[strong_subset,], pqlseq_effects$matrix_SE[strong_subset,], V=Vhat)
+data.cor <- mash_update_data(data, V=Vhat)
+data.strong.cor <- mash_set_data(pqlseq_effects$matrix_beta[strong_subset,], pqlseq_effects$matrix_SE[strong_subset,], V=Vhat)
 
 # === Investigate data-driven covariances ===
 
-U.pca = cov_pca(data.strong.cor, 5)
-U.f = cov_flash(data.strong.cor)
-U.ed = cov_ed(data.strong.cor, c(U.pca, U.f))
-U.c = cov_canonical(data.cor)
+U.pca <- cov_pca(data.strong.cor, 5)
+U.f <- cov_flash(data.strong.cor)
+U.ed <- cov_ed(data.strong.cor, c(U.pca, U.f))
+U.c <- cov_canonical(data.cor)
 
 # === Estimate mixture proportions ===
 
-m.all = mash(data.cor, Ulist = c(U.ed, U.c))
+m.all <- mash(data.cor, Ulist = c(U.ed, U.c))
 saveRDS(m.all, file.path(mash_path, "mash_object.RDS"))
 
 mash_results <- with(m.all$result, list(beta = PosteriorMean, SD = PosteriorSD, LFSR = lfsr))
@@ -156,9 +202,9 @@ tissue_data_list <- setNames(lapply(tissue_oi, load_tissue_data), tissue_oi)
 
 # --- Extract LFSR and PM ---
 
-lfsr=as.data.frame(get_lfsr(m.all))
-pm=as.data.frame(get_pm(m.all))
-lfsr$region<-rownames(lfsr)
+lfsr <- as.data.frame(get_lfsr(m.all))
+pm <- as.data.frame(get_pm(m.all))
+lfsr$region <- rownames(lfsr)
 
 # --- Intersect with methylation levels ---
                          
@@ -183,7 +229,7 @@ for (tissue in setdiff(tissue_oi, c("testis", "ovaries"))) {
   
   pop_means <- rowMeans2(tissue_pmeth[tissue_beta$region, ], na.rm = TRUE)
   young_ids <- metadata %>%
-    filter(tissue == tissue, age <= 6) %>%
+    filter(.data$tissue == tissue, age <= 6) %>%
     pull(lid_pid)
   
   young_means <- rowMeans2(tissue_pmeth[tissue_beta$region, young_ids], na.rm = TRUE)
@@ -214,13 +260,7 @@ apply_cor_test <- function(df) {
 
 # --- Table S5 ---
 results_corr_df_var <- map_dfr(coeff_intercept_list, apply_cor_test, .id = "tissue") %>%
-  mutate(
-    tissue = recode(tissue,
-                    "omental_at" = "omental adipose",
-                    "skeletal_muscle" = "skeletal muscle",
-                    "whole_blood" = "whole blood"
-    )
-  ) %>%
+  mutate(tissue = rename_tissues_vec(tissue)) %>%
   arrange(tissue)
 
 # --- Fig S3 ---
@@ -233,11 +273,7 @@ cat_young_plot <- all_coeff %>%
                          "neg lower"  = "low decreasing",
                          "pos higher" = "high increasing",
                          "pos lower"  = "low increasing"),
-    tissue = recode(tissue,
-                    "omental_at" = "omental adipose",
-                    "skeletal_muscle" = "skeletal muscle",
-                    "whole_blood" = "whole blood")
-  ) %>%
+    tissue = rename_tissues_vec(tissue)) %>%
   ggplot(aes(x = interaction, fill = interaction)) +
   geom_bar() +
   labs(x = "", title = "A") +
@@ -248,10 +284,7 @@ cat_young_plot <- all_coeff %>%
         strip.text = element_text(face = "bold"))
 
 corr_plot <- all_coeff %>%
-  mutate(tissue = recode(tissue,
-                         "omental_at" = "omental adipose",
-                         "skeletal_muscle" = "skeletal muscle",
-                         "whole_blood" = "whole blood")) %>%
+  mutate(tissue = rename_tissues_vec(tissue)) %>%
   ggplot(aes(x = young_intercept, y = beta)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "lm") +
@@ -272,40 +305,63 @@ ggsave(file.path(figure_path,"FigS3.png"), width=9.5, height=12.5, dpi=300)
 
 rm(list = setdiff(ls(), vars_to_keep))
 
+tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle")) #remove thymus and pituitary when needed 
+palette <- c(RColorBrewer::brewer.pal(12, "Set3")[-2], RColorBrewer::brewer.pal(8, "Set2")[8], RColorBrewer::brewer.pal(12,"Paired")[1],RColorBrewer::brewer.pal(12, "Set3")[2])
+extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
+                         
+# --- Reload results ---                
 mash_results <- readRDS(file.path(mash_path, "mash_estimates.RDS"))
 m.all <- readRDS(file.path(mash_path, "mash_object.RDS"))
 
 # Extract lfsr and posterior means
-lfsr=as.data.frame(get_lfsr(m.all))
-pm=as.data.frame(get_pm(m.all))
-lfsr$id<-1:dim(lfsr)[1]
-pm$id<-1:dim(pm)[1]
+lfsr <- as.data.frame(get_lfsr(m.all))
+pm <- as.data.frame(get_pm(m.all))
+lfsr$id <- 1:dim(lfsr)[1]
+pm$id <- 1:dim(pm)[1]
 
- # Count number of tissues (columns) below threshold for each row
-lfsr$sig_tissues <- apply(lfsr[, !(names(lfsr) == "id")] < lfsr_threshold, 1, sum)
+tissue_cols <- setdiff(colnames(lfsr), "id")
+                         
+# Count number of tissues (columns) below threshold for each row
+lfsr$sig_tissues <- rowSums(lfsr[, tissue_cols] < lfsr_threshold)
 
-# paste the names of the tissues (columns) below threshold for each row
 lfsr <- lfsr %>%
   rowwise() %>%
-  mutate(sig_which_tissues = paste(names(.)[1:12][c_across(1:12) < lfsr_threshold], collapse = ",")) %>%
-  ungroup() %>%
-  as.data.frame()
+  mutate(
+    sig_which_tissues = paste(
+      tissue_cols[c_across(all_of(tissue_cols)) < lfsr_threshold],
+      collapse = ","
+    )
+  ) %>%
+  ungroup()
 
 rownames(lfsr) <- rownames(pm)
 
+# In how many tissues is a site exhibiting significant age-associated changes?
+sigsites <- subset(lfsr, sig_tissues > 0); dim(sigsites)
+summary(sigsites$sig_tissues)
+sd(sigsites$sig_tissues)
+                         
 # === Fig 2F ===          
-x = get_pairwise_sharing(m.all, factor=0.5, lfsr_thresh = 0.05)
-
-# Rename tissues for clarity
-tissue_names <- c("whole_blood" = "whole blood", 
-                  "omental_at" = "omental adipose", 
-                  "skeletal_muscle" = "skeletal muscle")
-
-rownames(x) <- colnames(x) <- recode(rownames(x), !!!tissue_names)
+x <- get_pairwise_sharing(m.all, factor=0.5, lfsr_thresh = 0.05)
+x <- rename_tissues_mat(x)
                  
 Cairo::CairoPNG(file.path(figure_path,"Fig2F.png"))
 corrplot(x, method='color', col.lim=c(0,1), type='lower', addCoef.col = "black", tl.col="black", tl.srt=45,number.cex=0.65,cl.cex=1.3, cl.length = 5,tl.cex = 1.3)
 dev.off()
+
+# Hist of correlation coefficients based on pearson
+pear_mat <- as.matrix(get_pearson_matrix(beta = mash_results$beta, lfsr = mash_results$LFSR, lfsr_thresh = 0.05))
+pear_mat <- pear_mat[upper.tri(pear_mat)]
+
+ggplot(as.data.frame(pear_mat), aes(x=pear_mat))+
+  geom_histogram(bins = 8, fill="lightblue",col="black")+
+  geom_vline(xintercept = mean(pear_mat), linetype="dashed", linewidth = 1.7)+
+  # scale_x_continuous(breaks = c(0.1,0.3,0.5))+
+  labs(x="Pearson r")+
+  theme_classic()+
+  theme(axis.text = element_text(size=20, color="black"),
+        axis.title = element_text(size=20, color="black"))
+ggsave(file.path(figure_path,"Fig2G.png"), width = 3.05, height = 2.28)
 
 # === Fig 2A === 
 beta_res <- mash_results$beta
@@ -314,12 +370,12 @@ lfsr_res <- mash_results$LFSR
 beta_res <- beta_res %>%
   as_tibble(rownames = "Regions") %>%
   pivot_longer(-Regions, names_to = "tissue", values_to = "beta") %>%
-  mutate(tissue = recode(tissue, !!!tissue_names))
+  mutate(tissue = rename_tissues_vec(tissue))
 
 lfsr_res <- lfsr_res %>%
   as_tibble(rownames = "Regions") %>%
   pivot_longer(-Regions, names_to = "tissue", values_to = "lfsr") %>%
-  mutate(tissue = recode(tissue, !!!tissue_names))
+  mutate(tissue = rename_tissues_vec(tissue))
 
 lfsr_sig <- lfsr_res %>% filter(lfsr < lfsr_threshold)
 beta_sig <- beta_res %>% semi_join(lfsr_sig, by=c("Regions", "tissue"))
@@ -356,23 +412,23 @@ rownames_sig1=rownames(lfsr_sig1)
                  
 for (i in 1:dim(lfsr_sig1)[1]){
   
-  z <- min(lfsr_sig1[i, tissue_oi])[1]
-  focal <- pm[lfsr_sig1$id[i], which(lfsr_sig1[i, tissue_oi] == z)][1]
-  not_focal <- pm[lfsr_sig1$id[i], which(lfsr_sig1[i, tissue_oi] != z)]
+  z <- min(lfsr_sig1[i, tissue_cols])[1]
+  focal <- pm[lfsr_sig1$id[i], which(lfsr_sig1[i, tissue_cols] == z)][1]
+  not_focal <- pm[lfsr_sig1$id[i], which(lfsr_sig1[i, tissue_cols] != z)]
   not_focal2 <- log2(as.numeric(not_focal) / as.numeric(focal)) #negative numbers returning NaN
   
   lfsr_sig1$within2_v2[i] <- length(which(not_focal2 > -1 & not_focal2<1))
   not_focal_df <- t(as.data.frame(not_focal2))
   colnames(not_focal_df) <- colnames(not_focal)
     
-  lfsr_sig1$tissues_within2[i] <- paste(colnames(not_focal_df)[1:12][which(not_focal2 > -1 & not_focal2<1)], collapse = ",")
+  lfsr_sig1$tissues_within2[i] <- paste(colnames(not_focal_df[tissue_cols)[which(not_focal2 > -1 & not_focal2<1)], collapse = ",")
   lfsr_sig1$focal_pm[i] <- mean(focal)
   lfsr_sig1$other_pm[i] <- mean(t(not_focal))
 }
 
 lfsr_sig1 <- lfsr_sig1 %>%
   rowwise() %>%
-  mutate(focal_tissue = names(.)[1:12][which.min(c_across(1:12))]) %>%
+  mutate(focal_tissue = tissue_cols[which.min(c_across(all_of(tissue_cols)))]) %>%
   ungroup() %>%
   as.data.frame()
 
@@ -382,7 +438,7 @@ lfsr_sig1$site <- rownames(lfsr_sig1)
 write.table(as.data.frame(lfsr_sig1),file.path(bed_path,"age_sharing.txt"),row.names=F,sep='\t')
 
 # === Export bed files ===
-bed = data.frame(do.call("rbind",lapply(strsplit(gsub("Region_", "", rownames(lfsr)), split = "_", fixed=TRUE), function (x) x[1:3])))
+bed <- data.frame(do.call("rbind",lapply(strsplit(gsub("Region_", "", rownames(lfsr)), split = "_", fixed=TRUE), function (x) x[1:3])))
 colnames(bed) <- c("chr","start","end")
 bed[c("start","end")]<- lapply(bed[c("start","end")], as.integer)
 bed <- bed %>% mutate(chr = paste0("chr",chr))
@@ -390,7 +446,7 @@ bed <- bed %>% mutate(chr = paste0("chr",chr))
 write.table(bed,file.path(bed_path,"all_sites_age.bed"), col.names = FALSE, sep="\t", row.names = FALSE, quote=FALSE)
 write.table(data.frame(regions=rownames(lfsr)),file.path(bed_path,"all_sites_age.txt"), sep="\t",row.names = FALSE,quote=FALSE)
 
-# CpG-level bed export
+# === CpG-level bed export ===
 regions_to_cpg <- read.table(file.path(base_path,"metadata","regions_to_cpgs_mapping.bed"))
 
 bed_cpg <- regions_to_cpg %>%
@@ -401,10 +457,8 @@ write.table(bed_cpg, file.path(bed_path, "all_sites_age_CpG.bed"), col.names = F
 
 # === Upset Plots ===
 
-# Split the tissues by comma and create a list
 sigtissues_listall <- strsplit(as.character(lfsr_sig1$sig_which_tissues), ",")
 
-# Create a binary presence/absence data.frame
 tissue_matrixall <- data.frame(matrix(0, nrow = nrow(lfsr_sig1), ncol = 0))
 row.names(tissue_matrixall) <- lfsr_sig1$site
 
@@ -412,18 +466,28 @@ for (tissue in unique(unlist(sigtissues_listall))) {
   tissue_matrixall[[tissue]] <- as.integer(sapply(sigtissues_listall, function(x) tissue %in% x))
 }
 
-ComplexUpset::upset(tissue_matrixall, colnames(tissue_matrixall), n_intersections = 20,height_ratio = 0.9, name="", set_sizes=F,
-                    themes=upset_modify_themes(list(
-                      'intersections_matrix'=theme(text=element_text(size=14)),
-                      "Intersection size"=theme(text=element_text(size=14), axis.title.y = element_text(margin = margin(t = 0, r = -10, b = 0, l = 0))))),
-                    labeller=ggplot2::as_labeller(c(
-                      "thymus"="thymus", "pituitary"="pituitary", "spleen"="spleen", 'whole_blood' = 'whole blood',
-                      'omental_at'= "omental adipose", "liver"="liver", "thyroid"="thyroid", "adrenal"="adrenal",
-                      'skeletal_muscle'= "skeletal muscle", "kidney"="kidney", "lung"="lung", "heart"="heart")),
-                    base_annotations = list(
-                      'Intersection size'= (intersection_size(counts=F) +
-                                            scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")))
-                    )
+# Update labels
+upset_labels <- c(
+  setNames(names(tissue_labels), names(tissue_labels)), # default identity
+  tissue_labels
+)
+                                                  
+ComplexUpset::upset(
+  tissue_matrixall,
+  colnames(tissue_matrixall),
+  n_intersections = 20,
+  height_ratio = 0.9,
+  name="",
+  set_sizes=F,
+  themes=upset_modify_themes(list(
+    'intersections_matrix'=theme(text=element_text(size=14)),
+    "Intersection size"=theme(text=element_text(size=14),
+                              axis.title.y = element_text(margin = margin(t = 0, r = -10, b = 0, l = 0))))),
+  labeller=ggplot2::as_labeller(upset_labels),
+  base_annotations = list(
+    'Intersection size'= (intersection_size(counts=F) +
+                          scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")))
+  )
 )
 
 ggsave(file.path(figure_path,"Fig.2E.pdf"))

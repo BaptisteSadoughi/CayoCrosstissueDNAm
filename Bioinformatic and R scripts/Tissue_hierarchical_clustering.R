@@ -10,6 +10,7 @@ base_path <- "YOUR_BASE_PATH_HERE"  # Set your base path here
 output_path <- file.path(base_path, "Figures")
 dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
 
+# Load libraries
 library_list <- c("RColorBrewer","svglite","tidyverse","rlang", "corrplot", "dendextend")
 lapply(library_list, require, character.only=TRUE)
 

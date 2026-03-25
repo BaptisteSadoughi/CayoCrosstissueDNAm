@@ -63,8 +63,8 @@ identical(colnames(pmeth), metadata_lid$lid_pid)
 # ------------------------------------------
 # === UMAP ===
 # ------------------------------------------
-<
-# Customized umap using Chiou et al. parameters https://www.nature.com/articles/s41593-022-01197-0
+
+# Customized umap using Chiou et al. 2022 parameters https://www.nature.com/articles/s41593-022-01197-0
 umap.custom <- umap.defaults
 umap.custom$n_neighbors <- 50
 umap.custom$min_dist <- 0.5

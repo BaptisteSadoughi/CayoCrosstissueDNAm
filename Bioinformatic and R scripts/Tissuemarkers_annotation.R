@@ -71,8 +71,7 @@ chrom_anno <- c("promoter", "active_tx","enhancer","znf","heterochromatin","biva
 # Load the concatenated list of tissue markers from Table S4
 tDMR <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
 
-tDMR <- tDMR %>% mutate(marker = ifelse(mean_beta>0, "hyper", "hypo"),
-                        sites = gsub(pattern = "Region_","",sites)) %>% mutate(sites = paste0("chr",sites))
+tDMR <- tDMR %>% rename(site = region)
 
 # Format site names to match pqlseq output
 regions_to_cpg <- read.table(file.path(base_path,"metadata","regions_to_cpgs_mapping.bed"), header = FALSE)

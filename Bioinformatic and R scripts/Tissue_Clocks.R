@@ -2,28 +2,33 @@
 
 # ==============================================================================
 # Leave One Out Age Prediction
+# -------------------------------------------------------------------------
 # SLURM submission command (run as array over samples):
 # submit using: sbatch --cpus-per-task=10 --mem=100G -p general -q public -t 0-4 --array=1-(max sample size within one tissue) base_path/Bioinformatic and R scripts/thiscript.R
 # Produces: single_sample-single_alpha files saved in tissue specific subfolders.
 # ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("glmnet","tidyverse","parallel","stringr")
 lapply(library_list, require, character.only = TRUE)
 
+# === Setting ===
 num_cores <- 15 #number of cores to use for parallel tasks (tissue+1 is good)
 
 maturity <- 5 #set age at maturity for non-linear relationship
 
+# === Paths ===
 base_path <- "/path/to/your/directory" # <- set this path once
 metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
 
-# -------------------
+# -------------------------------------------
 # === LOAD METHYLATION DATA AND METADATA ===
-# -------------------
+# -------------------------------------------
 
-# Load methylation data
+# === Load methylation data ===
 file_name <- file.path(base_path, "full_matrices","Regions_full_pmeth14.rds")
 pmeth <- readRDS(file_name)
 
@@ -33,7 +38,7 @@ pmeth$skeletal_muscle <- pmeth$skeletal_muscle[,-which(colnames(pmeth$skeletal_m
 # keep autosomes only (run call) or all chr (mute call)
 pmeth <- lapply(pmeth,function(x) x[!grepl("Region_X|CpG_X",rownames(x)), ,drop = FALSE])
 
-# Load metadata
+# === Load metadata ===
 meta <- read.table(metadata_path, sep = "\t", header = TRUE) %>% 
                 filter(lid_pid !="LID_109490_PID_10416") %>% 
                 dplyr::select(lid_pid, age, monkey_id, tissue)
@@ -54,9 +59,9 @@ for(tissue_value in names(pmeth)){
 # Confirm absence of NAs for the elastic net regression.
 pmeth <- lapply(pmeth, function(x) x[complete.cases(mat), , drop = FALSE])
 
-# -------------------
+# --------------------------
 # === AGE TRANSFORMATION ===
-# -------------------
+# --------------------------
 
 # Horvath (2013)-style transformation https://genomebiology.biomedcentral.com/articles/10.1186/gb-2013-14-10-r115#MOESM2
 Fage = Vectorize(function(x){
@@ -78,13 +83,13 @@ F.inverse= Vectorize(function(y) {
   return(x)
 })
 
-# -------------------
+# ------------------------
 # === ELASTIC NET MODEL ===
-# -------------------
+# ------------------------
 
 tissues <- names(pmeth)
 
-# run tissues in parallel independently
+# === Run tissues in parallel independently ===
 parallel::mclapply(tissues, function(tissue) {
   
   epi <- pmeth[[tissue]]

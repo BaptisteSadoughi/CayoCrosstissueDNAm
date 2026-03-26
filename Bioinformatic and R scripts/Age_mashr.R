@@ -2,9 +2,10 @@
 # Mashr Correction of Age-associated Effects
 # ==============================================================================
 
+# === Clear workspace ===
 rm(list=ls())
 
-# === Libraries ===
+# === Load libraries ===
 required_libraries <- c("ashr", "mashr", "flashier", "svglite", "tidyverse", "corrplot", "MatrixGenerics","ggpubr","ComplexUpset","scales")
 lapply(required_libraries, require, character.only = TRUE)
 
@@ -13,7 +14,7 @@ base_path <- "/path/to/project"  # <-- Define this path only once
 pqlseq_path <- file.path(base_path, "PQLSEQ")
 metadata_path <- file.path(base_path,"metadata", "multitissue_metadata.txt")
 mash_path <- file.path(base_path, "MASH")
-bed_path <- file.path(mash_path, "bedfiles")
+bed_path <- file.path(base_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
 
 if (!dir.exists(mash_path)) dir.create(mash_path, recursive = TRUE, showWarnings = FALSE)
@@ -23,7 +24,7 @@ if (!dir.exists(figure_path))dir.create(figure_path, recursive = TRUE, showWarni
 # === Tissues of interest ===
 tissue_oi <- c("whole_blood", "spleen", "omental_at", "heart", "testis", "ovaries", "kidney", "lung", "adrenal", "thymus", "thyroid", "pituitary", "liver", "skeletal_muscle")
 
-# === Centralized tissue naming ===
+# === Tissue renaming ===
 tissue_labels <- c(
   "whole_blood" = "whole blood",
   "omental_at" = "omental adipose",
@@ -38,9 +39,10 @@ rename_tissues_mat <- function(mat) {
   mat
 }
 
-# --- Significance threshold ---
+# === Significance threshold ===
 lfsr_threshold <- 0.05
 
+# === Variables to keep across sections ===
 vars_to_keep <- c(
   "base_path", "pqlseq_path", "metadata_path", "mash_path", "bed_path",
   "figure_path",
@@ -80,9 +82,9 @@ get_pearson_matrix <- function(beta, lfsr, lfsr_thresh = 0.05) {
   out
 }
 
-# =============================================================================
+# ====================================
 # === CONSTRUCT MATRICES FOR MASHr ===
-# =============================================================================
+# ====================================
 
 read_table_and_rownames <- function(tissue) {
   df <- read.table(file.path(pqlseq_path, paste0("bed_", tissue, ".txt")),
@@ -171,13 +173,13 @@ saveRDS(mash_results, file.path(mash_path, "mash_estimates.RDS"))
 # === DIRECTION OF CHANGE ANALYSIS ===
 # -----------------------------------
 
-# Load metadata
+# === Load metadata ===
 metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   mutate(percent_unique = unique / reads) %>%
   filter(age_at_sampling>2.9) # remove infants
 
-# --- Load tissues as list ---
+# === Load tissues as list ===
 load_tissue_data <- function(tissue) {
   message("Loading tissue data for: ", tissue)
   file_path <- gsub("XXX", tissue, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
@@ -200,13 +202,13 @@ load_tissue_data <- function(tissue) {
 # Load tissues into a named list
 tissue_data_list <- setNames(lapply(tissue_oi, load_tissue_data), tissue_oi)
 
-# --- Extract LFSR and PM ---
+# === Extract LFSR and PM ===
 
 lfsr <- as.data.frame(get_lfsr(m.all))
 pm <- as.data.frame(get_pm(m.all))
 lfsr$region <- rownames(lfsr)
 
-# --- Intersect with methylation levels ---
+# === Intersect with methylation levels ===
                          
 coeff_intercept_list <- list()
 
@@ -251,19 +253,19 @@ for (tissue in setdiff(tissue_oi, c("testis", "ovaries"))) {
 # Save results
 saveRDS(coeff_intercept_list, file.path(bed_path,"tissue_age_associated_sites_list.rds"))
 
-# --- Pearson correlation (variable sites only) ---
+# === Pearson correlation (variable sites only) ===
 apply_cor_test <- function(df) {
   df <- df %>% filter(nonvariable == "var")
   test <- cor.test(df$beta, df$young_intercept, method = "pearson")
   tibble(pearson_corr = round(test$estimate, 3), pvalue = ifelse(test$p.value < 0.001, "<0.001", test$p.value))
 }
 
-# --- Table S5 ---
+# === Table S10 ===
 results_corr_df_var <- map_dfr(coeff_intercept_list, apply_cor_test, .id = "tissue") %>%
   mutate(tissue = rename_tissues_vec(tissue)) %>%
   arrange(tissue)
 
-# --- Fig S3 ---
+# === Fig S5 ===
 all_coeff <- bind_rows(coeff_intercept_list)
 
 cat_young_plot <- all_coeff %>%
@@ -297,19 +299,21 @@ corr_plot <- all_coeff %>%
 
 # Combine and save plot
 ggpubr::ggarrange(cat_young_plot, corr_plot, nrow = 2)
-ggsave(file.path(figure_path,"FigS3.png"), width=9.5, height=12.5, dpi=300)
+ggsave(file.path(figure_path,"FigS5.png"), width=9.5, height=12.5, dpi=300)
 
-# -----------------------------------
+# --------------------------------------
 # === TISSUE SHARING OF AGE EFFECTS ===
-# -----------------------------------
+# --------------------------------------
 
+# === Clear workspace ===
 rm(list = setdiff(ls(), vars_to_keep))
 
-tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle")) #remove thymus and pituitary when needed 
+# === Color theme ===
+tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle")) 
 palette <- c(RColorBrewer::brewer.pal(12, "Set3")[-2], RColorBrewer::brewer.pal(8, "Set2")[8], RColorBrewer::brewer.pal(12,"Paired")[1],RColorBrewer::brewer.pal(12, "Set3")[2])
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
                          
-# --- Reload results ---                
+# --- Reload mash results ---                
 mash_results <- readRDS(file.path(mash_path, "mash_estimates.RDS"))
 m.all <- readRDS(file.path(mash_path, "mash_object.RDS"))
 
@@ -341,15 +345,15 @@ sigsites <- subset(lfsr, sig_tissues > 0); dim(sigsites)
 summary(sigsites$sig_tissues)
 sd(sigsites$sig_tissues)
                          
-# === Fig 2F ===          
+# === Fig 2E ===          
 x <- get_pairwise_sharing(m.all, factor=0.5, lfsr_thresh = 0.05)
 x <- rename_tissues_mat(x)
                  
-Cairo::CairoPNG(file.path(figure_path,"Fig2F.png"))
+Cairo::CairoPNG(file.path(figure_path,"Fig2E.png"))
 corrplot(x, method='color', col.lim=c(0,1), type='lower', addCoef.col = "black", tl.col="black", tl.srt=45,number.cex=0.65,cl.cex=1.3, cl.length = 5,tl.cex = 1.3)
 dev.off()
 
-# Hist of correlation coefficients based on pearson
+# === Fig 2F ===    
 pear_mat <- as.matrix(get_pearson_matrix(beta = mash_results$beta, lfsr = mash_results$LFSR, lfsr_thresh = 0.05))
 pear_mat <- pear_mat[upper.tri(pear_mat)]
 
@@ -361,7 +365,7 @@ ggplot(as.data.frame(pear_mat), aes(x=pear_mat))+
   theme_classic()+
   theme(axis.text = element_text(size=20, color="black"),
         axis.title = element_text(size=20, color="black"))
-ggsave(file.path(figure_path,"Fig2G.png"), width = 3.05, height = 2.28)
+ggsave(file.path(figure_path,"Fig2F.png"), width = 3.05, height = 2.28)
 
 # === Fig 2A === 
 beta_res <- mash_results$beta
@@ -455,7 +459,7 @@ bed_cpg <- regions_to_cpg %>%
 
 write.table(bed_cpg, file.path(bed_path, "all_sites_age_CpG.bed"), col.names = FALSE, sep="\t", row.names = FALSE, quote=FALSE)
 
-# === Upset Plots ===
+# === Upset Plots Fig2D ===
 
 sigtissues_listall <- strsplit(as.character(lfsr_sig1$sig_which_tissues), ",")
 

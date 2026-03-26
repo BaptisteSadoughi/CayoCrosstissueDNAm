@@ -9,19 +9,22 @@
 # The resulting tissue-level matrices are exported as separate objects.
 # ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
-# sbatch --cpus-per-task=22 --mem=300G -p general -q public -t 0-08:00:00 --mail-type=ALL /path/to/Generate_CpG_region_methylation.R
+# === Command line to submit the script ===
+# sbatch --cpus-per-task=22 --mem=300G -p general -q public -t 0-08:00:00 --mail-type=ALL base_path/Bioinformatic and R scripts/Generate_CpG_region_methylation.R
 
+# === Load libraries ===
 library_list <- c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures","tidyverse","comethyl","parallel","purrr","DelayedMatrixStats")
-
 lapply(library_list, require, character.only = TRUE)
 
 # -------------------
 # === PARAMETERS ===
 # -------------------
 
-base_path <- "base_path" #adjust accordingly
+base_path <-"/path/to/project"  # <-- Define this path only once
+
 chrs <- paste0("",c(1:20,"X")) #adapt to genome of the species
 num_cores <- 22 #number of cores to use for parallel tasks (chrs+1 is advised)
 gap_region <- 1000 #maximum gap between two consecutive CpG sites in a region
@@ -34,28 +37,29 @@ path_to_metadata <- file.path(base_path, "metadata", "multitissue_metadata.txt")
 min_cov <- 1       # minimum coverage per CpG in a sample to be counted
 p_sample <- 0.25   # minimum fraction of samples with min_cov coverage per CpG
 med_cov <- 5       # median coverage threshold across samples per CpG
-path_to_output <- file.path(base_path, "Regions")
+path_to_output <- file.path(base_path, "output")
 
 # Source external helper functions
 source(file.path(base_path, "Bioinformatic and R scripts", "SupportFunctions_generate_region_methylation.R"))
 
 #------------------------------------------
-# ########## READ IN BSSEQ RAW DATA ####
+# === READ IN BSSEQ RAW DATA ===
 #------------------------------------------
+
+# === Load data ===
 DNAm_data <- readRDS(path_bsseq_file)
 
 # Simplify sample names
 colnames(DNAm_data) <- gsub(".CpG_report.merged_CpG_evidence.cov.gz", "",
                        str_split_i(colnames(DNAm_data), "/", 6))
 
-# Read prepared metadata
-metadata_lid <- read.table(path_to_metadata, sep = "\t", header = TRUE)
+metadata <- read.table(path_to_metadata, sep = "\t", header = TRUE)
 
 # Subset bsseq object by colnames present in the metadata lid_pid
-DNAm_data_red <- DNAm_data[,metadata_lid$lid_pid]
+DNAm_data_red <- DNAm_data[,metadata$lid_pid]
 
 # Check consistency between metadata and bsseq sample names
-if (length(metadata_lid$lid_pid) != length(colnames(DNAm_data_red)) || !all.equal(metadata_lid$lid_pid, colnames(DNAm_data_red))) {
+if (length(metadata$lid_pid) != length(colnames(DNAm_data_red)) || !all.equal(metadata$lid_pid, colnames(DNAm_data_red))) {
   stop("STOP: Metadata and samples info are not equal")
 }
 
@@ -71,17 +75,17 @@ DNAm_data_red_list <- parallel::mclapply(chrs,function(x){
   return(chr)
   }, mc.cores = num_cores)
 
-# ---------------------------------
+# --------------------------------------
 # === FILTER CpGs BASED ON COVERAGE ===
-# ---------------------------------
+# --------------------------------------
 
 # Get unique tissue types from metadata
-tissues = c(unique(metadata_lid$grantparent_tissueType))
+tissues = c(unique(metadata$grantparent_tissueType))
 tissue_oi = tissues
 
 DNAm_data_red_filtered_list=mclapply(chrs, filter_CpGs,
                                 bsseq_list=DNAm_data_red_list,
-                                metadata=metadata_lid,
+                                metadata=metadata,
                                 tissues=tissues,
                                 min_cov=min_cov,
                                 p_sample=p_sample,
@@ -137,11 +141,11 @@ parallel::mclapply(1:length(DNAm_data_red_filtered_list),
                    },
                    mc.cores = 22)
 
-# -----------------------------------------
+# -----------------------------------------------------
 # === GROUP REGION BATCHES BY CHROMOSOME AND MERGE ===
-# -----------------------------------------
+# -----------------------------------------------------
 
-# List all files created above
+# === List all files created above ===
 file_list <- list.files(path = regions_batch_dir, pattern = "_chr(X|\\d+)_", full.names = TRUE)
 
 # Group files by the common _chr_ identifier
@@ -187,9 +191,9 @@ result_list <- map(grouped_files, function(files) {
 
 unlink(regions_batch_dir, recursive = TRUE)
 
-# -----------------------------------
+# -------------------------------------------
 # === REORDER RESULT LIST BY CHROMOSOME ===
-# -----------------------------------
+# -------------------------------------------
                            
 # Identify numeric chr and sort
 numeric_names <- grep("^\\d+$", names(result_list), value = TRUE)
@@ -213,9 +217,9 @@ final_result <- list(
   pmeth = do.call(rbind, lapply(result_list, function(x) x$pmeth))
 )
 
-# ------------------------------------------
+# ----------------------------------------------
 # === CALCULATE DESCRIPTIVE STATS ON REGIONS ===
-# ------------------------------------------
+# ----------------------------------------------
                   
 final_result <- amend_regions(final_result)
 final_result <- get_summary_regions(final_result)
@@ -232,15 +236,15 @@ rm(final_result)
 # Filter regions consistently hypo/hyper methylated across tissues
 DNAm_data_red_list_methfiltered <- mclapply(chrs, compute_and_filter_regions,
                                        bsseq_list = result_list,
-                                       metadata = metadata_lid,
+                                       metadata = metadata,
                                        tissues = tissue_oi,
                                        hypomethylated = hypomethylated,
                                        hypermethylated = hypermethylated,
                                        mc.cores = num_cores)
 
-# ------------------------------------------
+# ------------------------------------------------
 # === GENERATE TISSUE-SPECIFIC REGION MATRICES ===
-# ------------------------------------------
+# ------------------------------------------------
 
 for (tissue_level in tissue_oi){
 
@@ -249,7 +253,7 @@ for (tissue_level in tissue_oi){
                            function(i) tissue_specific_coverage(
                              matrix_list=DNAm_data_red_list_methfiltered[[i]],
                              tissue = tissue_level,
-                             metadata_sample = metadata_lid,
+                             metadata_sample = metadata,
                              in_at_least_Xperc_samples = in_at_least_Xperc_samples,
                              med_cov_filter = med_cov_filter
                            ),
@@ -279,7 +283,7 @@ for (tissue_level in tissue_oi){
 }
 
 # ------------------------------------------
-# === CLEAN WORKSPACE ===
+# === CLEAR WORKSPACE ===
 # ------------------------------------------
 
 rm(all_chr_result,grouped_files,regions_list,result_list,result_tissue) #clean workspace

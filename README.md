@@ -141,7 +141,7 @@ Tissue-specific differential methylation is tested using binomial mixed models w
 
 Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R).
 
-Enrichment of tissue-specific markers for biological pathways is performed using [Gene_annotation_tissue_markers.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Gene_annotation_tissue_markers.R).
+The rhesus macaque gtf should be dowloaded to (`base_path`) to conduct the enrichment analysis of tissue-specific markers for biological pathways using [Gene_annotation_tissue_markers.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Gene_annotation_tissue_markers.R).
 
 ## Age-associated differential methylation
 Before running the scripts:

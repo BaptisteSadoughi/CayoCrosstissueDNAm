@@ -1,31 +1,31 @@
 # ==============================================================================
-# Testing for enrichment for chromHMM annotations
+# Testing for enrichment for chromHMM annotations among tissue-specific markers
 # ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("corrplot","svglite","tidyverse","RColorBrewer","patchwork")
 lapply(library_list, require, character.only=TRUE)
 
 # === Paths ===
 
 base_path <- "/path/to/project"  # <-- Define this path only once
+
 bed_path <- file.path(base_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
-tissuemarker_path <- file.path(base_path, "tissue_comparisons", "tissuespecific_methylation.txt")
 
 # === Tissues of interest ===
 
 tissue_oi <- c("whole_blood","spleen","omental_at","heart","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle","testis","ovaries")
 
-# === Plot palette ===
+# === Color theme ===
 
 tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle"))
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
-
 new_levels <- c("ovaries", "testis")
 new_colors <- c("#008B8B", "#4682B4")
-
 tissue_plot <- c(tissue_plot, new_levels)
 extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 
@@ -84,12 +84,12 @@ for (i in chrom_anno) {
   regions_to_cpg[, paste0(i)] <- 0 
 } 
 
-# ==============================================================================
-# MAP CHROMHMM STATES TO CpG-LEVEL SITES PER TISSUE
-# ==============================================================================
+# ------------------------------------------------------------
+# === MAP CHROMHMM STATES TO CpG-LEVEL SITES PER TISSUE ===
+# ------------------------------------------------------------
 
 ## IMPORTANT NOT ALL REGIONS WERE TESTED
-alltissues<-c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thymus", "thyroid", "whole_blood")
+alltissues <- c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thymus", "thyroid", "whole_blood")
 
 for(i in alltissues){
   filename <- gsub("XXX",i, file.path(base_path, "tissues_meth", "XXX_meth", "Regions_pmeth_full_XXX_1000_14T.rds"))
@@ -166,7 +166,7 @@ all_sites_alltissues <- lapply(all_sites_alltissues, function(x) {
   return(x)
 })
 
-#intersect the annotation datasets with significance for tissue-specificity
+# intersect the annotation datasets with significance for tissue-specificity
 for(level in names(all_sites_alltissues)){
   
   #isolate tissue level for that 
@@ -234,9 +234,9 @@ run_fisher_tests <- function(sites_list, sig_column, chrom_anno){
 fisher_results_hypo <- run_fisher_tests(all_sites_alltissues, "sig_hypo", chrom_anno)
 fisher_results_hyper <- run_fisher_tests(all_sites_alltissues, "sig_hyper", chrom_anno)                                    
 
-# ==============================================================================
-# ANNOTATION FORMATTING
-# ==============================================================================
+# -----------------------------------------------------
+# === ANNOTATION FORMATTING ===
+# -----------------------------------------------------
 
 map_chromHMM_to_tissuename <- function(level) {
   if (grepl("adipose", level)) {
@@ -279,9 +279,9 @@ fisher_results_hyper <- fisher_results_hyper %>%
   select(tissue, annotation, chromHMM, method, OR, conf.low, conf.high, pvalue, sig05, FDR)
 rownames(fisher_results_hyper) <- NULL
 
-# ==============================================================================
-# HEATMAP PLOT FUNCTION
-# ==============================================================================
+# ------------------------------------------------------------
+# === HEATMAP PLOT FUNCTION ===
+# ------------------------------------------------------------
 
 plot_enrichment_heatmap <- function(df, filename, width = 5.5, height = 6.5, include_strip = TRUE) {
   
@@ -356,7 +356,7 @@ plot_enrichment_heatmap <- function(df, filename, width = 5.5, height = 6.5, inc
 }
 
 # ==============================================================================
-# GENERATE AND SAVE FIGURES
+# === GENERATE AND SAVE FIGURES ===
 # ==============================================================================
 
 plot_enrichment_heatmap(fisher_results_hypo, "Fig1F.pdf", width = 5.5, height = 6.5, include_strip = TRUE)

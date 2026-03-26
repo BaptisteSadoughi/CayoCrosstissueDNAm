@@ -1,32 +1,27 @@
 #!/usr/bin/env /packages/apps/spack/21/opt/spack/linux-rocky8-zen3/gcc-12.1.0/r-4.4.0-4yi4nm4foi7jsbczjxvv77uq7adnzb67/bin/Rscript
 
-# -------------------------------------------------------------
-# SLURM submission command (run as array over tissues):
-# sbatch --cpus-per-task=22 --mem-per-cpu=1G -p general -q public -t 0-02:00:00 --array=1-(number of tissue) base_path/Bioinformatic and R scripts/thiscript
-# -------------------------------------------------------------
-
+# ================================================================================================================================================
+# Imputation of missing percent DNA methylation values
+# (data used mostly for visualization purposes)
+#
 # - Load tissue-specific percent methylation matrices
 # - Filter for regions with full coverage
 # - Impute missing values
+# -----------------------------------------------------------------------------
+# SLURM submission command (run as array over tissues):
+# sbatch --cpus-per-task=22 --mem-per-cpu=1G -p general -q public -t 0-02:00:00 --array=1-(number of tissue) base_path/Bioinformatic and R scripts/Percent_methylation_imputation.R
+# ================================================================================================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("parallel", "dplyr", "tidyr","methyLImp2","BiocParallel")
-
 lapply(library_list, require, character.only = TRUE)
 
-# === USER DEFINED BASE PATH ===
+# === Paths ===
 
 base_path <- "/path/to/project"  # <-- Define this path only once
-
-# === Configuration ===
-
-tissue_oi <- c("lung", "kidney", "heart", "liver", "spleen", "skeletal_muscle","adrenal",
-               "thyroid", "thymus", "whole_blood", "omental_at","pituitary", "testis", "ovaries")
-
-pattern_ <- "_1000_14T"
-
-# === Paths ===
 
 main_folder <- file.path(base_path,"tissues_meth")
 output_full_path <- file.path(base_path, "full_matrices")
@@ -39,6 +34,13 @@ sub_folders <- paste0(tissue_oi,"_meth")
 
 # Construct full paths for additional folders
 full_folders <- file.path(main_folder, sub_folders)
+
+# === Tissues ===
+
+tissue_oi <- c("lung", "kidney", "heart", "liver", "spleen", "skeletal_muscle","adrenal",
+               "thyroid", "thymus", "whole_blood", "omental_at","pituitary", "testis", "ovaries")
+
+pattern_ <- "_1000_14T"
 
 # === Extract pmeth from RDS files ===
 
@@ -105,6 +107,6 @@ imputed_data <- methyLImp2(input=t(pmeth),
 
 # === Save imputed matrix ===
 
-saveRDS(t(imputed_data), file = file.path(base_path, "imputed", paste0("pmeth_imp_methyLimp_", tissue, ".rds")))
+saveRDS(t(imputed_data), file = file.path(output_imputed_path, paste0("pmeth_imp_methyLimp_", tissue, ".rds")))
 
 print(paste("COMPLETED",tissue))

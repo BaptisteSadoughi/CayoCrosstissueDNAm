@@ -12,9 +12,9 @@ lapply(required_libraries, require, character.only = TRUE)
 # === Paths ===
 base_path <- "/path/to/project"  # <-- Define this path only once
 
-meth_dir <- file.path(base_path, "tissues_meth")
+pqlseq_path <- file.path(base_path, "PQLSEQ")
 kinship_path <- file.path(base_path, "metadata", "wgs_kinmat.rds")
-output_path <- file.path(base_path, "PQLSEQ")
+output_path <- file.path(base_path, "MASH")
 
 # === Tissues ===
 
@@ -28,7 +28,7 @@ for(ELA in ELAlist){
   
 #reads in all the model results
   for(tissue in tissue_oi){
-    filename0 <- gsub("XXX",tissue,file.path(output_path,"XXX_000_pqlseq.rds"))
+    filename0 <- gsub("XXX",tissue,file.path(pqlseq_path,"XXX_000_pqlseq.rds"))
     filename <- gsub("000", ELA, filename0)
   
     # load data

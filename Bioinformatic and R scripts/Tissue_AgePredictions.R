@@ -1,13 +1,28 @@
-#### After the Elastic Net Regression is done this script calculates the Mean Squared error for each values of Alpha.
-#### The calculation is performed independently for each tissue and saved as a dataframe.
+# ==============================================================================
+# Once the Elastic Net Regression is completed, this script calculates the
+# Mean Squared error for each values of Alpha.
+# -----------------------------------
+# The calculation is performed independently for each tissue and saved as a dataframe.
+# ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
+
+# === Load libraries ===
 library_list <- c("glmnet","tidyverse","parallel","svglite","dyplr","ggpubr")
 lapply(library_list, require, character.only = TRUE)
 
+# === Paths ===
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+figure_path <- file.path(base_path, "Figures")
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
+
+# === Tissues ===
 tissue_oi <- c("whole_blood","pituitary","thymus","thyroid","testis","ovaries","lung","kidney","heart","liver","spleen","skeletal_muscle","adrenal","omental_at")
 
-# Function to calculate mean squared error (MSE) for a given tissue and alpha
+# === Function to calculate mean squared error (MSE) for a given tissue and alpha ===
+
 calculate_mse <- function(folder, alpha) {
   files <- list.files(path = folder, pattern = paste0(".*Combined_\\d+_alpha", alpha, "_.*\\.txt"), full.names = TRUE)
   
@@ -25,7 +40,8 @@ calculate_mse <- function(folder, alpha) {
   return(mean(mse_values, na.rm = TRUE))
 }
 
-folders <- paste0("./predicted_agetransfo/",tissue_oi,"/")
+# === Load clock predictions ===
+folders <- paste0(base_path,"/predicted_age/",tissue_oi,"/")
 
 ## Loop through folders and alphas
 
@@ -49,11 +65,11 @@ for (i in seq_along(folders)) {
   write.table(MSE_result, file.path(folder, paste0("/MSE_agepred_result.txt")), row.names = FALSE)
 }
 
-################################################################################
-#### PREDICTED AGE
-################################################################################
+# -----------------------
+# === PREDICTED AGE ===
+# -----------------------
 
-setwd("/path/to/predicted_agetransfo")
+setwd(file.path(base_path,"predicted_age"))
 
 # List all subfolders
 subfolders <- list.dirs(full.names = FALSE)
@@ -127,7 +143,7 @@ for (i in seq_along(subfolders)) {
 min_alphas <- data.frame(Subfolder = unlist(subfolder_list),
                          Min_MSE = unlist(mse_list))
 # Save min alphas
-write.table(min_alphas,"/path/to/tissue_predicted_agetransfo/min_alphas_age_transfo.txt",sep = "\t", quote = FALSE, row.names = FALSE)
+write.table(min_alphas,file.path(base_path,"predicted_age/min_alphas_age.txt",sep = "\t", quote = FALSE, row.names = FALSE)
 
 # Concatenate data for ggplot
 combined_data <- do.call(rbind, Map(cbind, combined_data_list, subfolder = names(combined_data_list)))
@@ -135,7 +151,7 @@ combined_data <- do.call(rbind, Map(cbind, combined_data_list, subfolder = names
 combined_data = combined_data %>% rename(tissue=subfolder)
 
 #------------------------------
-# CLOCK PERFORMANCE
+# === CLOCK PERFORMANCE ===
 #------------------------------
 
 # Calculate correlation and MAE (median average error)
@@ -154,7 +170,7 @@ summ.stats <- data.frame(
   MAE = sapply(summ.stats, function(x) x["MAE"])
 )
 
-## Performance calculated on adults only
+# === Performance calculated on adults only ===
 adult_combined_data_list <- lapply(combined_data_list, function(x) x[x$chronological_age > 2.9,])
 
 # Apply to the list of prediction to calculate summary statistics     
@@ -170,23 +186,18 @@ summ.stats.adult <- data.frame(
 # Combine the model performance for all datapoints and >2.9 only
 summ.stats = merge(summ.stats,summ.stats.adult)
 
-# Save the output
-saveRDS(list(combined_data,summ.stats), file = paste0("/path/to/tissue_predicted_agetransfo/AgePredictions.rds"))
+# === Save the output ===
+saveRDS(list(combined_data,summ.stats), file = file.path(base_path, "predicted_age","AgePredictions.rds"))
 
 combined_data <- combined_data %>% 
-  mutate(tissue = recode(tissue, "omental_at" = "omental adipose")) %>%
-  mutate(tissue = recode(tissue, "skeletal_muscle" = "skeletal muscle")) %>% 
-  mutate(tissue = recode(tissue, "whole_blood" = "whole blood"))
-summ.stats <- summ.stats %>% mutate(tissue = recode(tissue, "omental_at" = "omental adipose")) %>%
-  mutate(tissue = recode(tissue, "skeletal_muscle" = "skeletal muscle")) %>% 
-  mutate(tissue = recode(tissue, "whole_blood" = "whole blood"))
+                          mutate(tissue = recode(tissue, "omental_at" = "omental adipose", "skeletal_muscle" = "skeletal muscle", "whole_blood" = "whole blood"))
+summ.stats <- summ.stats %>%
+                          mutate(tissue = recode(tissue, "omental_at" = "omental adipose", "skeletal_muscle" = "skeletal muscle", "whole_blood" = "whole blood"))
 
 # Necessary for labeller below
 summ.stats <- summ.stats[order(summ.stats$tissue),]
 
-#-------------------------------------
-##### PLOT CLOCK PREDICTIONS - Fig. 3A
-#-------------------------------------
+# === PLOT CLOCK PREDICTIONS - Fig. 3A ===
 
 # Necessary for labeller below
 summ.stats <- summ.stats[order(summ.stats$tissue),]
@@ -221,12 +232,10 @@ clocks_plot<-ggplot(data = combined_data, aes(x=chronological_age, y=predicted_a
         axis.title = element_text(size = 16, color = "black"),
         axis.text = element_text(size = 16, color = "black"),legend.position = "none")
 print(clocks_plot)
-ggsave("/path/to/Figures/Panels_Figure3/MultitissueClocks.pdf",width = 12.5, height = 4.0)
+ggsave(file.path(figure_path,"MultitissueClocks.pdf"), width = 12.5, height = 4.0)
 
-#-------------------------------------
-##### PLOT CLOCK PERFORMANCE - Fig. 3B
-#-------------------------------------
-                          
+# === PLOT CLOCK PERFORMANCE - Fig. 3B ===
+                        
 all_performance = summ.stats
 
 # Order tissue levels by performance of Pearson's correlation
@@ -262,10 +271,10 @@ ggplot(all_performance_long, aes(x = tissue, y = performance, fill = tissue)) +
         strip.text = element_text(size = 20),
         strip.background = element_rect(fill = "white"),
         legend.position = "none")
-ggsave("/path/to/Figures/Panels_Figure3/Performance_clocks.pdf",width = 5,height = 5)
+ggsave(file.path(figure_path,"Performance_clocks.pdf"),width = 5,height = 5)
                           
 #------------------------------------
-##### AGE DEVIATIONS
+# === AGE DEVIATIONS ===
 #------------------------------------
 
 # Function to extract lm coefficients for each facet
@@ -275,7 +284,7 @@ get_lm_coefficients <- function(df) {
   return(coefficients)
 }
 
-# Extract lm coefficients for each facet
+# === Extract lm coefficients for each facet ===
 facet_coefficients <- lapply(split(combined_data, combined_data$tissue), get_lm_coefficients)
 print(facet_coefficients)
 
@@ -313,7 +322,7 @@ gridExtra::grid.arrange(grobs = qq_plots, ncol = 4, nrow = nrow)
 lm_residuals <- imap_dfr(lm_residuals, ~mutate(.x, tissue = .y))
 combined_data <- left_join(combined_data, lm_residuals)
 
-### Same for adults only
+# === Same for adults only ===
 lm_residuals.ad <- list()
 lm_mse.ad <- list()
 qq_plots.ad <- list()
@@ -351,10 +360,12 @@ lm_residuals.ad <- imap_dfr(lm_residuals.ad, ~mutate(.x, tissue = .y))
 lm_residuals.ad <- lm_residuals.ad %>% rename(Residual_adult = Residual)
 combined_data <- merge(combined_data, lm_residuals.ad, all.x = TRUE)
 
-# Export the dataset with age deviation
-write.table(combined_data ,"/path/to/DNAm_deviation_data.txt", sep = "\t", row.names = F, quote = F)
+# === Export the dataset with age deviation ===
                           
-### Table S10
+write.table(combined_data , file.path(base_path,"output","DNAm_deviation_data.txt"), sep = "\t", row.names = F, quote = F)
+                          
+# === Table S10 ===
+
 summary_residual <- summary(combined_data$Residual)
 summary_residual.ad <- round(summary(combined_data$Residual_adult)[-7], digits = 4)
 summary_corr <- summary(summ.stats$coef.cor)
@@ -372,40 +383,51 @@ summary_info <- summary_info %>%
                             "summary_mae.ad" = 'MAE (adult)', "summary_residual.ad" = "Linear Regression Residual (adult)")) %>%
   select(Parameter, everything())
 
-write.csv(summary_info, "/path/to/ClocksPerformance.csv", row.names = F, quote = F)
+write.csv(summary_info, file.path(base_path,"output","ClocksPerformance.csv"), row.names = F, quote = F)
 
 #---------------------------------------------------------------
-###### QC: TECHNICAL CORRELATES OF AGE DEVIATION
+# === QC: TECHNICAL CORRELATES OF AGE DEVIATION ===
 #---------------------------------------------------------------
                            
 # Non-biological sources of variation in epigenetic age prediction
 # Take inspiration from https://genomebiology.biomedcentral.com/articles/10.1186/gb-2013-14-10-r115#Fig3
 # and from https://www.nature.com/articles/s43587-021-00134-3
 
-metadata_lid = read.table("/path/to/metadata_final.txt", sep = "\t", header = TRUE) %>%  filter(lid_pid != "LID_109490_PID_10416")
+# === Load data and metadata ===
+metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
+  filter(lid_pid != "LID_109490_PID_10416") %>%
+  mutate(percent_unique = unique / reads)
+                           
+qc_technical_df <- combined_data %>% left_join(., metadata, by="lid_pid") %>% select(lid_pid, tissue, reads, unique, meth_cpg, unmeth_cpg, Residual, predicted_age, chronological_age)
 
-qc_technical_df <- combined_data %>% left_join(., metadata_lid, by="lid_pid") %>% select(lid_pid, tissue, reads, unique, meth_cpg, unmeth_cpg, Residual, predicted_age, chronological_age)
-
-## Fig. S10
-p1<-ggplot(qc_technical_df, aes(x=reads, y=Residual))+geom_point()+labs(title="A")+theme_bw()+theme_plot
-p2<-ggplot(qc_technical_df, aes(x=reads, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(y="DNAm age")
-p3<-ggplot(qc_technical_df, aes(x=unique, y=Residual))+geom_point()+labs(title="B")+theme_bw()+theme_plot+labs(x="uniquely mapped reads")
-p4<-ggplot(qc_technical_df, aes(x=unique, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(x="uniquely mapped reads",y="DNAm age")
-p5<-ggplot(qc_technical_df %>% mutate(p_unique=unique/reads), aes(x=p_unique, y=Residual))+geom_point()+labs(title="C")+theme_bw()+theme_plot+labs(x="% uniquely mapped reads")
-p6<-ggplot(qc_technical_df %>% mutate(p_unique=unique/reads), aes(x=p_unique, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(x="% uniquely mapped reads", y="DNAm age")
+# === Fig. S14 ===
+p1 <- ggplot(qc_technical_df, aes(x=reads, y=Residual))+geom_point()+labs(title="A")+theme_bw()+theme_plot
+p2 <- ggplot(qc_technical_df, aes(x=reads, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(y="DNAm age")
+p3 <- ggplot(qc_technical_df, aes(x=unique, y=Residual))+geom_point()+labs(title="B")+theme_bw()+theme_plot+labs(x="uniquely mapped reads")
+p4 <- ggplot(qc_technical_df, aes(x=unique, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(x="uniquely mapped reads",y="DNAm age")
+p5 <- ggplot(qc_technical_df %>% mutate(p_unique=unique/reads), aes(x=p_unique, y=Residual))+geom_point()+labs(title="C")+theme_bw()+theme_plot+labs(x="% uniquely mapped reads")
+p6 <- ggplot(qc_technical_df %>% mutate(p_unique=unique/reads), aes(x=p_unique, y=predicted_age))+geom_point()+theme_bw()+theme_plot+labs(x="% uniquely mapped reads", y="DNAm age")
 
 Technical_QC_AgeDev1 <- ggpubr::ggarrange(p1,p3,p5,p2,p4,p6, nrow=2,ncol=3)
-Technical_QC_AgeDev2 <- ggplot(qc_technical_df %>% mutate(p_unique=unique/reads), aes(x=p_unique, y=Residual))+geom_point()+labs(title="D")+facet_wrap(~tissue, nrow=2)+theme_bw()+theme_plot+labs(x="% uniquely mapped reads")+theme(strip.text = element_text(size=14))
+Technical_QC_AgeDev2 <- ggplot(qc_technical_df %>%
+                               mutate(p_unique=unique/reads),
+                               aes(x=p_unique, y=Residual))+
+                           geom_point()+labs(title="D")+
+                           facet_wrap(~tissue, nrow=2)+
+                           theme_bw()+theme_plot+
+                           labs(x="% uniquely mapped reads")+
+                           theme(strip.text = element_text(size=14))
+                           
 ggpubr::ggarrange(Technical_QC_AgeDev1,Technical_QC_AgeDev2,nrow=2)
-ggsave("/path/to/Figures/Technical_QC_AgeDev.pdf",width=12,height = 13)
+ggsave(file.path(figure_path,"Technical_QC_AgeDev.pdf"),width=12,height = 13)
 
-### Technical correlates of mean squared error
+# === Technical correlates of mean squared error ===
 
 # Loop through each subfolder to load the minimimal MSE and concatenate into a list of dataframes
 result_mse <- data.frame(tissue=as.character(),minMSE = as.numeric(), stringsAsFactors = FALSE)
 for(subfolder in subfolders){
   # Create the file path to MSE_result.txt in the current subfolder
-  file_path <- file.path(paste0("/path/to/predicted_agetransfo/",subfolder), paste0("MSE_combined_result.txt"))
+  file_path <- file.path(paste0(base_path,"predicted_age",subfolder), paste0("MSE_combined_result.txt"))
   
   # Read the data into a data frame
   data <- read.table(file_path, header = TRUE)
@@ -426,21 +448,20 @@ result_mse=result_mse %>% left_join(.,combined_data %>% group_by(tissue) %>%
                                       summarize(sample_size=n(),age_range = (max(chronological_age)-min(chronological_age)), age_variation = sd(chronological_age)),
                                     join_by(tissue))
 
-# MSE vs sample size
-sample_size<-ggplot(result_mse,aes(x=sample_size,y=minMSE))+geom_point(size=2.5)+labs(
+# === MSE vs sample size ===
+sample_size <- ggplot(result_mse,aes(x=sample_size,y=minMSE))+geom_point(size=2.5)+labs(
   x="sample size", y="minimal MSE",title="A"
   )+theme_bw()+theme_plot
 
-# MSE vs age range
+# === MSE vs age range ===
 age_range <- ggplot(result_mse,aes(x=age_range,y=minMSE))+geom_point(size=2.5)+
   labs(
     x="age range (max-min) in years", y="minimal MSE",title="B"
   )+theme_bw()+theme_plot
 
-# MSE vs age variation
+# === MSE vs age variation ===
 age_var <- ggplot(result_mse,aes(x=age_variation,y=minMSE))+geom_point(size=2.5)+labs(
-  x="chronological age SD", y="minimal MSE",title="C"
-)+theme_bw()+theme_plot
+  x="chronological age SD", y="minimal MSE",title="C")+theme_bw()+theme_plot
 
 ggpubr::ggarrange(sample_size,age_range, age_var,nrow = 1)
-ggsave("/path/to/Figures/tissue_predicted_agetransfo/Technical_QC_mse.pdf",width = 9, height = 3)
+ggsave(file.path(figure_path,"Technical_QC_mse.pdf"),width = 9, height = 3)

@@ -1,19 +1,43 @@
-library(dplyr)
-library(qvalue)
-library(ggplot2)
-library(PQLseq)
+# ==============================================================================
+# Differential Methylation Analysis with PQLSEQ
+# -------------------------------------------------------------
+# SLURM submission command (run as array over tissues):
+# ==============================================================================
 
-packageVersion("PQLseq")
+# === Clear workspace ===
+rm(list = ls())
 
-metadata_lid = read.csv("/path/to/metadata/ELA_metadata.csv", header = TRUE) %>%
+# === Load libraries ===
+library_list <- c("tidyverse", "PQLseq", "qvalue")
+lapply(library_list, require, character.only = TRUE)
+
+# === Paths ===
+
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
+meth_dir <- file.path(base_path, "tissues_meth")
+kinship_path <- file.path(base_path, "metadata", "wgs_kinmat.rds")
+output_dir <- file.path(base_path, "PQLSEQ")
+
+rds_path <- file.path(meth_dir, paste0(tissue, "_meth"), paste0("Regions_pmeth_full_", tissue, "_1000_14T.rds"))
+
+# === Load data ===
+
+metadata_lid = read.csv(file.path(metadata_path,"ELA_metadata.csv"), header = TRUE) %>%
   mutate(AnimalID.text= paste("'", monkey_id, sep="")) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   filter(age_at_sampling > 2.9) %>%
-  filter(monkey_id != "22H")
-ELA_data = read.csv("/path/to/metadata/ELA_data.csv")
-metadata_lid$percent_unique<-metadata_lid$unique/metadata_lid$reads
+  filter(monkey_id != "22H") %>%
+  mutate(percent_unique = unique/reads)
+
+ELA_data = read.csv(file.path(metadata_path, "ELA_data.csv"))
+
 meta_ELA<-merge(metadata_lid, ELA_data, by="AnimalID.text")
-kinmat<-readRDS("/path/to/metadata/wgs_kinmat.rds")
+
+kinmat<-readRDS(kinship_path)
+
+# === Settings ===
 
 in_args <- commandArgs(trailingOnly = TRUE)
 tissue=in_args
@@ -22,30 +46,32 @@ print(tissue)
 plots <- list()
 
 ELAvariables <- c("RankIndex01", "q_kinBirth_sub", "MomAllLossType", "q_grp_sub", "PrimpIndex", "CompetingSibIndex", "CumlQuartIndex6_4_sub")
-  
-filename <- gsub("XXX",tissue,"/path/to/data/Regions_pmeth_XXX.rds")
 
-  # load data
-  r <- readRDS(filename)
+# load data
+r <- readRDS(rds_path)
 
-  #Meth count
-  counts <- r$methylation
+# Meth count
+counts <- r$methylation
   
-  #Total count (cov)
-  cov <- r$coverage
+# Total count (cov)
+cov <- r$coverage
 
-  #filter counts for those in metadata
-  countsfiltered<- counts[,colnames(counts) %in% metadata_lid$lid_pid]
-  covfiltered<-cov[,colnames(cov) %in% metadata_lid$lid_pid]
+# filter counts for those in metadata
+countsfiltered <- counts[,colnames(counts) %in% metadata_lid$lid_pid]
+covfiltered <- cov[,colnames(cov) %in% metadata_lid$lid_pid]
   
-  #order the same
-  covordered<-covfiltered[,colnames(countsfiltered)]
+# order the same
+covordered<-covfiltered[,colnames(countsfiltered)]
 
-  #filter metadata for IDs in that tissue & included in kin matrix (all should be included in kin matrix)
-    rownames(meta_ELA)<- meta_ELA$lid_pid
-  subset_metadata_tissue<- meta_ELA[colnames(covordered),]
-  subset_metadata_kin<-subset_metadata_tissue[subset_metadata_tissue$monkey_id %in% rownames(kinmat),]
-  
+# filter metadata for IDs in that tissue & included in kin matrix (all should be included in kin matrix)
+rownames(meta_ELA)<- meta_ELA$lid_pid
+subset_metadata_tissue<- meta_ELA[colnames(covordered),]
+subset_metadata_kin<-subset_metadata_tissue[subset_metadata_tissue$monkey_id %in% rownames(kinmat),]
+
+# ---------------------------------
+# === RUN PQLSEQ MODELLING ===
+# ---------------------------------
+
 for(ELA in ELAvariables){
  tryCatch({
     #Filter metadata for IDs with that ELA variable
@@ -96,14 +122,12 @@ cov_group<-as.data.frame(ELAsubsetcov[,colnames(ELAsubsetcov) %in% group1$lid_pi
 cov_group1<-cov_ELA[rowSums(cov_group) == 0,]
 
 
-
-
 sites_to_remove <-c(rownames(cov_ELA0), rownames(cov_ELA1), rownames(cov_group0), rownames(cov_group1)); length(sites_to_remove)
   
 filtered_counts <- ELAsubsetcounts[!rownames(ELAsubsetcounts) %in% sites_to_remove, ]
 filtered_cov <- ELAsubsetcov[!rownames(ELAsubsetcov) %in% sites_to_remove, ]
 
-  #model the data
+# model the data
 
 print("starting modeling")
 
@@ -117,14 +141,14 @@ print("starting modeling")
 
 print("finished modeling")
 
-  #filter for converged sites and calculate qvalue
-   converged<- subset(fit, converged == "TRUE")
-   converged$qvalue <-qvalue(converged[,"pvalue"])$qvalues
+# filter for converged sites and calculate qvalue
+converged<- subset(fit, converged == "TRUE")
+converged$qvalue <-qvalue(converged[,"pvalue"])$qvalues
    
-  #save resultss
-   string1 <- gsub("XXX", tissue, "/path/to/save/XXX_000_pqlseq.rds")
-   string2 <- gsub("000", ELA, string1)
-   saveRDS(converged, file= string2)
+# save resultss
+string1 <- gsub("XXX", tissue, file.path(output_dir,"XXX_000_pqlseq.rds"))
+string2 <- gsub("000", ELA, string1)
+saveRDS(converged, file= string2)
    
    print(paste("finished",tissue, ELA, sep=" "))
  

@@ -1,31 +1,30 @@
 #==========================================================================
-#
 # Unsupervised hierarchical tree clustering of samples
-#
 #==========================================================================
 
-# User Configuration - Modify these paths as needed
-base_path <- "YOUR_BASE_PATH_HERE"  # Set your base path here
+# === Clear workspace ===
+rm(list = ls())
 
-output_path <- file.path(base_path, "Figures")
-dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
-
-# Load libraries
+# === Load libraries ===
 library_list <- c("RColorBrewer","svglite","tidyverse","rlang", "corrplot", "dendextend")
 lapply(library_list, require, character.only=TRUE)
 
-# Define ggplot theme upfront
+# === Paths ===
+base_path <- "YOUR_BASE_PATH_HERE"  # Set your base path here
+
+metadata_path <- file.path(base_path, "metadata", "multitissue_metadata.txt")
+figure_path <- file.path(base_path, "Figures")
+dir.create(figure_path, recursive = TRUE, showWarnings = FALSE)
+
+# === Color theme ===
 tissue_plot <- sort(c("whole_blood","spleen","omental_at","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal_muscle"))
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
-# add missing tissues
 new_levels <- c("ovaries", "testis")
-# Define the new colors:
 new_colors <- c("#008B8B", "#4682B4")
-# Add these new levels and colors to your plots and palette
 tissue_plot <- c(tissue_plot, new_levels)
 extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 
-# Read in data
+# === Load data ===
 file_name <- file.path(base_path, "imputed", "pmeth_imp_methyLimp_14.rds")
 pmeth <- readRDS(file_name)
 
@@ -50,13 +49,17 @@ rownames(pmeth) <- pmeth$rownames
 pmeth <- pmeth %>% select(-rownames)
 pmeth <- t(as.matrix(pmeth)) #work with rows = samples
 
-# Load metadata
-metadata_path <- file.path(base_path, "metadata", "multitissue_metadata.txt")
+# === Load metadata ===
 metadata <- read.delim(metadata_path, stringsAsFactors = FALSE) %>%
   filter(lid_pid != "LID_109490_PID_10416")
 
 pmeth <- pmeth[rownames(pmeth) != "LID_109490_PID_10416",]
 metadata <- metadata[match(rownames(pmeth), metadata$lid_pid),]
+
+
+# -------------------------------
+# === HIERARCHICAL CLUSTERING ===
+# -------------------------------
 
 set.seed(123)
 
@@ -87,7 +90,7 @@ dend2 <- dend %>%
   set("leaves_col", annot_cols)                       # square colors
 
 # Save plot
-svglite::svglite(file.path(output_path, "tissue_hierarchical_tree_ward.svg"),
+svglite::svglite(file.path(figure_path, "tissue_hierarchical_tree_ward.svg"),
                  width = 10, height = 6)
 
 # Plot

@@ -1,31 +1,34 @@
 #=====================================================================
-#
 # Tissue Classification using Multinomial GLMNET
-# submit using: sbatch --cpus-per-task=10 --mem=100G -p htc -q public -t 0-4 --array=1-14  base_path/Bioinformatic and R scriptsTissue_classification_glmnet.R
+# --------------------------------------------------------------
+# submit using: sbatch --cpus-per-task=10 --mem=100G -p htc -q public -t 0-4 --array=1-14  base_path/Bioinformatic and R scripts/Tissue_classification_glmnet.R
 #=====================================================================
 
-# User Configuration - Modify these paths as needed
-base_path <- "YOUR_BASE_PATH_HERE"  # Set your base path here
+# === Clear workspace ===
+rm(list = ls())
 
-# Optional: Restrict to specific tissues (set to NULL for all tissues)
+# === Load libraries ===
+library_list <- c("glmnet","tidyverse","dplyr","parallel","stringr")
+lapply(library_list, require, character.only = TRUE)
+
+# === Paths ===
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+metadata_path <- file.path(base_path, "metadata", "multitissue_metadata.txt")
+output_path <- file.path(base_path, "TissueClassificationGLMNET")
+dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+
+# === Optional: Restrict to specific tissues (set to NULL for all tissues) ===
 tissue_oi <- NULL
 # tissue_oi <- c("whole_blood", "spleen", "omental_at", "heart", "ovaries", "kidney", 
 #                "lung", "adrenal", "thymus", "thyroid", "liver", "skeletal_muscle")
 
-# Cross-validation parameters
+# === Cross-validation parameters ===
 n_batches     <- 10
 max_per_batch <- 250
 
 # Set seed for reproducibility
 set.seed(1003)
-
-# Load libraries
-library_list <- c("glmnet","tidyverse","dplyr","parallel","stringr")
-lapply(library_list, require, character.only = TRUE)
-
-# Set up output directory
-output_path <- file.path(base_path, "TissueClassificationGLMNET")
-dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
 
 # Get SLURM array task ID (with local fallback)
 SAMP <- Sys.getenv("SLURM_ARRAY_TASK_ID")
@@ -35,7 +38,8 @@ if (SAMP == "") {
 }
 SAMP <- as.integer(SAMP)
 
-# Read in data
+# === Load data ===
+
 file_name <- file.path(base_path, "imputed", "pmeth_imp_methyLimp_14.rds")
 pmeth <- readRDS(file_name)
 
@@ -47,8 +51,7 @@ if (!is.null(tissue_oi) && length(tissue_oi) > 0) {
 # Keep autosomes only
 pmeth <- lapply(pmeth, function(x) x[!grepl("Region_X|CpG_X", rownames(x)), , drop = FALSE])
 
-# Read and process metadata
-metadata_path <- file.path(base_path, "metadata", "multitissue_metadata.txt")
+# === Load metadadata ===
 meta <- read.delim(metadata_path, stringsAsFactors = FALSE) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   select(lid_pid, monkey_id, tissue)
@@ -61,6 +64,8 @@ if (!is.null(tissue_oi) && length(tissue_oi) > 0) {
 # Get sample names from matrices in pmeth
 all_colnames <- unique(unlist(lapply(pmeth, colnames)))
 meta <- meta[meta$lid_pid %in% all_colnames, ]
+
+# === Format data ===
 
 # Remove incomplete rows
 pmeth <- lapply(pmeth, function(x){
@@ -109,7 +114,8 @@ meta <- meta[match(colnames(combined), meta$lid_pid), ]
 
 stopifnot(identical(colnames(combined), meta$lid_pid))
 
-# Initialize empty batches
+# === Initialize empty batches ===
+                
 batches <- vector("list", n_batches)
 for (i in seq_len(n_batches)) batches[[i]] <- character(0)
 
@@ -161,7 +167,10 @@ run_batch <- function(batch_idx, data_matrix) {
   return(res)
 }
 
-# Process current batch
+# --------------------------------
+# === Process current batch ===
+# --------------------------------
+                
 if (SAMP >= 1 && SAMP <= n_batches) {
   # Process the current batch
   res <- run_batch(batch_idx = SAMP, data_matrix = combined)

@@ -1,9 +1,14 @@
-# -------------------------------------------------------------
+# ==============================================================================
 # Enrichment analysis of age-associated differentially methylated sites 
-# -------------------------------------------------------------
+# -----------------------------------
+# Genomic regions exhibiting age-associated variation in DNAm are annotated
+# with genomic features, chrommHMM, and tissue-specific DNAm marker.
+# ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("corrplot","svglite","tidyverse","RColorBrewer","ggpubr","GenomicRanges")
 lapply(library_list, require, character.only=TRUE)
 
@@ -12,25 +17,22 @@ base_path <- "/path/to/project"  # <-- Define this path only once
 
 bed_path <- file.path(base_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
+output_path <- file.path(base_path, "output")
 
 # === Color theme ===
-
 tissue_plot <- sort(c("whole blood","spleen","omental adipose","heart","kidney","lung","adrenal","thymus","thyroid", "pituitary", "liver", "skeletal muscle"))
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12),tissue_plot)
-
 new_levels <- c("ovaries", "testis")
-
 new_colors <- c("#008B8B", "#4682B4")
-
 tissue_plot <- c(tissue_plot, new_levels)
 extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 
 # === Tissues of interest ===
 tissue_oi <- c("whole_blood","spleen","omental_at","heart","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle")
 
-# -----------------------------------
+# -------------------------------------------------------------
 # === ENRICHEMENT OF CGISLANDS, GENE BODIES, AND PROMOTERS ===
-# -----------------------------------
+# -------------------------------------------------------------
 
 # === Helper function to read region files, select and rename cols, add site ===
 
@@ -41,7 +43,7 @@ read_region_file <- function(filepath) {
     mutate(site = paste(chr, start, end, sep = "_"))
 }
 
-# === Load annotated region files excluding chromHMM ===
+# === Load annotated region files (excluding chromHMM and TEs) ===
 
 region_files <- list.files(path = bed_path, pattern = "all_sites_age") %>%
   grep(pattern = "chromHMM|repeatmasker", value = TRUE, invert = TRUE)
@@ -58,7 +60,7 @@ regionToCpG <- read.table(file.path(bed_path, "all_sites_age_CpG.bed"), header =
 annotation_names <- c("gene_body", "promoters", "cgIslands", "unassigned")
 regionToCpG <- regionToCpG %>% mutate(!!!setNames(as.list(rep(0, length(annotation_names))), annotation_names))
 
-# Fill with 1 if site is in the region
+# Fill with 1 if site is in the annotation
 
 regionFiles_named <- setNames(regionFiles, names(regionFiles))
 
@@ -73,7 +75,7 @@ gr_regions <- GRanges(
                      end   = regionToCpG$V3)
 )
 
-## CpG sites (single-base ranges)
+## CpG islands
 gr_islands <- GRanges(
   seqnames = cpgislands$chr,
   ranges   = IRanges(start = cpgislands$start,
@@ -82,7 +84,7 @@ gr_islands <- GRanges(
 hits <- findOverlaps(gr_regions, gr_islands)
 regionToCpG$cgIslands[unique(queryHits(hits))] <- 1L
 
-## Gene body (single-base ranges)
+## Gene body
 gr_genes <- GRanges(
   seqnames = genes$chr,
   ranges   = IRanges(start = genes$start,
@@ -91,7 +93,7 @@ gr_genes <- GRanges(
 hits_genes <- findOverlaps(gr_regions, gr_genes)
 regionToCpG$gene_body[unique(queryHits(hits_genes))] <- 1L
 
-## Promoter2kb (single-base ranges)
+## Promoter2kb
 gr_promoters <- GRanges(
   seqnames = promoters$chr,
   ranges   = IRanges(start = promoters$start,
@@ -173,16 +175,17 @@ enrich_hyper <- plot_enrichment(allenrich_pos, "A")
 enrich_hypo <- plot_enrichment(allenrich_neg, "B")
 
 enrich_combined_plot <- ggpubr::ggarrange(enrich_hyper, enrich_hypo, align = "v")
-ggsave(file.path(figure_path,"FigS4.pdf"), enrich_combined_plot, width=7.5, height=7.5)
+ggsave(file.path(figure_path,"FigS6.pdf"), enrich_combined_plot, width=7.5, height=7.5)
 
-# Export combined results Table S7
+# Export combined results Table S13
 all_res <- bind_rows(allenrich_neg, allenrich_pos) %>%
   select(direction_of_change, type, OR, conf.low, conf.high, pvalue)
 
-# -----------------------------------
+# ---------------------------------------
 # === ENRICHEMENT OF CHROMMHMM STATES ===
-# -----------------------------------
+# ---------------------------------------
 
+# === Clear workspace ===
 rm(list = setdiff(ls(), c("base_path", "bed_path", "figure_path", "annotation_names", "perform_enrichment", "enrichments", "plot_enrichment","sigsites",
                           "tissue_plot","extended_palette", "tissue_oi")))
 
@@ -327,7 +330,7 @@ chrommHmm_fischer_results <- chrommHmm_fischer_results %>%
                              "14_ReprPCWk"="Weak Repressed PolyComb",
                              "15_Quies"="Quiescent",))
 
-# === Table S6 ===
+# === Table S12 ===
                                      
 chrommHmm_fischer_results %>% select(tissue, annotation, OR, conf.low, conf.high, pvalue, sided, method, chromHMM)
 
@@ -353,14 +356,13 @@ ggplot(data=chrommHmm_fischer_results, aes(x=annotation, y=log2(OR), group=tissu
         legend.margin = margin(t=5, 0, 0, 0))
 ggsave(file.path(figure_path,"Fig2B.pdf"), width=7.5,height=7.5)
 
-# -----------------------------------
+# -------------------------------------------------------------------------------
 # === INTERSECTION OF TISSUE AGE ASSOCIATED SITES AND TISSUE-SPECIFIC MARKERS ===
-# -----------------------------------
+# -------------------------------------------------------------------------------
 
 # === Load tissue markers and age DMRs ===
-                                     
-# Load tissue markers                            
-tDMR <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
+                                                              
+tDMR <- readxl::read_excel(file.path(output_path, "SupplementaryTables.xlsx"), sheet = "TableS4")
 
 tDMR <- tDMR %>% rename(sites = region)
 
@@ -378,7 +380,7 @@ dfs <- lapply(tissue_oi, function(tissue) {
 
 names(dfs) <- tissue_oi
 
-## Find shared row names across all dataframes
+# Find shared row names across all dataframes
 allsites_markers <- Reduce(intersect, lapply(dfs, rownames)) #179,969 sites measured across all 12 tissues
 
 # We can only test for the effect of age on tissue markers that were included in allsites_markers in the first place
@@ -417,7 +419,7 @@ fisher_list <- lapply(res_list, function(x){
 tissues_spe_enrich <- as.data.frame(do.call(rbind, fisher_list))
 colnames(tissues_spe_enrich)<-c("pvalue", "conf.low", "conf.high", "OR", "null", "sided", "method", "table", "tissue")
 
-# === Table S8 ===
+# === Table S15 ===
                                      
 tissues_spe_enrich <- tissues_spe_enrich %>%
   mutate(across(c(OR, pvalue, conf.low, conf.high), as.numeric))
@@ -465,7 +467,7 @@ tDMR_aDMR %>% group_by(tissue_marker) %>%
   filter(!tissue_marker %in%  c("testis","ovaries")) %>% 
   arrange(prop_affected) -> tissuespe_proportion_changing_tDMRs
 
-
+# === Proportion of tissue-marker with age-associated variation FigS10 ===
 tissuespe_proportion_changing_tDMRs %>% 
   ggplot(., aes(x=tissue_marker, y = prop_affected, fill = tissue_marker))+
   geom_bar(stat = "identity")+
@@ -485,7 +487,7 @@ tDMR_aDMR %>%
   summarize(prop_affected = sum(aDMR)/length(aDMR)) %>% 
   summarize(av=mean(prop_affected),sd=sd(prop_affected))
                                      
-# === FigS7 ===
+# === FigS11 ===
                                      
 ggplot(tDMR_aDMR, aes(x = beta_marker, y = beta_age)) +
   geom_point(alpha = 0.2) +
@@ -498,11 +500,9 @@ ggplot(tDMR_aDMR, aes(x = beta_marker, y = beta_age)) +
         axis.title = element_text(size = 14, color = "black"),
         strip.background = element_rect(fill = "white"),
         strip.text = element_text(size = 12, face = "bold"))
-ggsave(file.path(figure_path,"FigS7.png"), width = 10, height = 6)
-                                     
-# === Fig2H ===
+ggsave(file.path(figure_path,"FigS11png"), width = 10, height = 6)
 
-tDMR_aDMR = tDMR_aDMR %>%
+tDMR_aDMR <- tDMR_aDMR %>%
     mutate(direction_of_change = case_when(
       beta_age<0 & beta_marker>0 ~ "loss_specificity",
       beta_age>0 & beta_marker<0 ~ "loss_specificity",
@@ -511,7 +511,7 @@ tDMR_aDMR = tDMR_aDMR %>%
     ),
     direction_of_change_bino = ifelse(direction_of_change=="loss_specificity",1,0))
 
-# Tissue summary
+# === Tissue markers direction of variation with age ===
 tissue_summ_direction_of_change <- tDMR_aDMR %>% 
   filter(aDMR==1) %>% 
   group_by(tissue_marker) %>% 
@@ -521,6 +521,8 @@ tissue_summ_direction_of_change <- tDMR_aDMR %>%
   mutate(tissue_marker = factor(tissue_marker, levels=tissue_marker, ordered = TRUE))
 
 tissue_summ_direction_of_change <- recode_tissue_names(tissue_summ_direction_of_change, tissue_marker)
+
+# === Fig 2H ===
 
 ggplot(tissue_summ_direction_of_change, aes(x=tissue_marker, y=prop_loss_specificity, col=tissue_marker,size=n_sites))+
   geom_count()+

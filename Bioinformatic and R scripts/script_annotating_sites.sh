@@ -9,7 +9,7 @@
 # ======= Configuration =======
 base_path="${1:-/your/default/path}" # <- define this path
 
-BEDFILES_DIR="$base_path/MASH/bedfiles"
+BEDFILES_DIR="$base_path/bedfiles"
 ANNOTATIONS_DIR="$base_path/annotations"
 INPUT_BED="$BEDFILES_DIR/all_sites_age_CpG.bed"
 

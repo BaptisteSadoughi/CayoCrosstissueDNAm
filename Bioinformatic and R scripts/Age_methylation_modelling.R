@@ -1,23 +1,21 @@
 #!/usr/bin/env /packages/apps/spack/18/opt/spack/gcc-11.2.0/r-4.2.2-kpl/bin/Rscript
 
-# -------------------------------------------------------------
+# ==============================================================================
 # Differential Methylation Analysis with PQLSEQ
-# SLURM submission command (run as array over tissues):
-# sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 base_path/Bioinformatic and R scripts/thiscript.R
 # -------------------------------------------------------------
+# SLURM submission command (run as array over tissues):
+# sbatch --cpus-per-task=40 --mem=100G -p general -q public -t 0-4 --array=1-14 base_path/Bioinformatic and R scripts/Age_methylation_modelling.R
+# ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
-# ====================
-# Library dependencies
-# ====================
+# === Load libraries ===
 library_list <- c("bsseq", "BiocGenerics", "GenomicRanges", "GenomicFeatures",
                   "tidyverse", "PQLseq", "purrr", "svglite", "qvalue")
 lapply(library_list, require, character.only = TRUE)
 
-# ================
-# CONFIGURABLE PATHS
-# ================
+# === Paths ===
 
 base_path <- "/path/to/project"  # <-- Define this path only once
 
@@ -30,17 +28,11 @@ diagnostics_dir <- file.path(output_dir, "diagnostics")
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 if (!dir.exists(diagnostics_dir)) dir.create(diagnostics_dir, recursive = TRUE)
 
-# =============
-# Parallel cores
-# =============
-
+# === Parallel cores ===
 n.cores <- 40
 print(paste("Using", n.cores, "cores"))
 
-# ====================
-# Tissue selection
-# ====================
-
+# === Tissue selection ===
 tissue_oi <- c("liver", "whole_blood", "spleen", "omental_at", "heart","ovaries", "testis",
                "kidney", "lung", "adrenal","thymus", "thyroid", "pituitary", "skeletal_muscle")
 
@@ -53,10 +45,7 @@ if (is.na(SAMP) || SAMP < 1 || SAMP > length(tissue_oi)) {
 tissue <- tissue_oi[SAMP]
 cat("Analyzing tissue:", tissue, "\n")
 
-# =====================
-# Load data and metadata
-# =====================
-
+# === Load data and metadata ===
 metadata <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   mutate(percent_unique = unique / reads)
@@ -66,7 +55,7 @@ if (!file.exists(rds_path)) stop("Missing RDS file: ", rds_path)
 
 r <- readRDS(rds_path)
 
-# Match metadata to available samples
+# === Match metadata to available samples ===
 subset_metadata <- metadata[metadata$lid_pid %in% colnames(r[["coverage"]]), ]
 r$metadata <- subset_metadata
 assign(tissue, r)
@@ -82,15 +71,10 @@ if (tissue == "skeletal_muscle") {
   assign(tissue, sm)
 }
 
-# ===============
-# Load kinship matrix
-# ===============
-
+# === Load kinship matrix ===
 kinmat <- readRDS(kinship_path)
 
-# =========================
-# Prepare data for PQLseq
-# =========================
+# === Prepare data for PQLseq ===
 
 tissue_data <- get(tissue)
 methcount <- tissue_data$methylation
@@ -120,9 +104,7 @@ if (!identical(colnames(coverage), rownames(metadata_tissue)) ||
   stop("Mismatch in data matrices")
 }
 
-# ================
-# Define covariates
-# ================
+# === Define covariates ===
 
 age <- metadata_tissue$age
 sex_bino <- as.numeric(metadata_tissue$sex == "M")
@@ -135,10 +117,7 @@ covariates <- if (tissue %in% c("ovaries", "testis")) {
   as.matrix(cbind(percent_unique, sex_bino, group_bino))
 }
 
-# ==============================================
-# Remove sites with 0 coverage in either group
-# ==============================================
-
+# === Remove sites with 0 coverage in either group ===
 remove_zero_coverage_sites <- function(group_label) {
   sample_ids <- rownames(metadata_tissue)[metadata_tissue$group == group_label]
   zero_rows <- rowSums(coverage[, sample_ids]) == 0
@@ -150,9 +129,9 @@ sites_to_remove <- unique(c(remove_zero_coverage_sites("HH"), remove_zero_covera
 coverage <- coverage[!rownames(coverage) %in% sites_to_remove, ]
 methcount <- methcount[!rownames(methcount) %in% sites_to_remove, ]
 
-# =============
-# Run PQLseq
-# =============
+# ---------------------------------------
+# === Run PQLseq ===
+# ---------------------------------------
 
 fit <- PQLseq::pqlseq(
   RawCountDataSet = methcount,
@@ -164,9 +143,9 @@ fit <- PQLseq::pqlseq(
   numCore = n.cores
 )
 
-# =========================
-# Post-processing and output
-# =========================
+# ---------------------------------------
+# === Post-processing and output ===
+# ---------------------------------------
 
 fit$chr <- str_split_i(rownames(fit), 2, "_")
 fit$start <- str_split_i(rownames(fit), 3, "_")

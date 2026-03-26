@@ -1,17 +1,18 @@
-# --------------------------------------
+# ==============================================================================
 # Load tissue-specific percent methylation matrices
 # Generate and export a UMAP colored by tissue type
-# --------------------------------------
+# ==============================================================================
 
 # UMAP projection
 # Useful tutorial
 # UMAP https://cran.r-project.org/web/packages/umap/vignettes/umap.html
 # Corrplot https://taiyun.github.io/corrplot/
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("umap","RColorBrewer","svglite","tidyverse","rlang", "corrplot")
-
 lapply(library_list, require, character.only=TRUE)
 
 # === Paths ===
@@ -93,8 +94,6 @@ tissue_plot <- sort(c("whole_blood", "spleen", "omental_at", "heart", "kidney",
 
 # Create the extended palette for the tissues
 extended_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(12), tissue_plot)
-
-# Add the new levels and their respective colors
 new_levels <- c("ovaries", "testis")
 new_colors <- c("#008B8B", "#4682B4")
 extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
@@ -255,7 +254,9 @@ plot.umap = function(x, metadata, fill, shape = NULL,
   }
 }
 
+# ---------------------------------------
 # === Generate Plot ===
+# ---------------------------------------
                          
 predictors <- c("tissue")
 

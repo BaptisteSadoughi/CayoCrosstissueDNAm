@@ -1,36 +1,49 @@
-#######################################################
+# ==============================================================================
 #
 # WITHIN INDIVIDUAL HETEROGENEITY IN PREDICTED AGES
-#
-#######################################################
+# --------------------------------------------------------------------
+# The aim is to investigate the level of within-individual consistency in DNAm
+# age deviations across tissues.
+# ==============================================================================
 
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("corrplot","purrr","parallel","tidyverse", "DHARMa", "performance")
-
 lapply(library_list, require, character.only=TRUE)
 
-# Define ggplot theme upfront
+# === Paths ===
+
+base_path <- "/path/to/project"  # <-- Define this path only once
+
+dnam_devation_path <- file.path(base_path,"output","DNAm_deviation_data.txt")
+metadata_path <- file.path(base_path,"metadata","multitissue_metadata.txt")
+figure_path <- file.path(base_path, "Figures")
+
+# === Color theme ===
 palette <- c(RColorBrewer::brewer.pal(12, "Set3")[-2], RColorBrewer::brewer.pal(8, "Set2")[8], RColorBrewer::brewer.pal(12,"Paired")[1],RColorBrewer::brewer.pal(12, "Set3")[2])
 my_theme <- theme_classic() +
   theme(axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         legend.background = element_blank())
 
-combined_data = read.table("/path/to/DNAm_deviation_data.txt", sep="\t", header=TRUE)
+# === Load data ===
+combined_data = read.table(dnam_devation_path, sep="\t", header=TRUE)
 
 # Load metadata
-metadata <- read.table("/path/to/metadata.txt", sep="\t", header=TRUE) %>% 
+metadata <- read.table(metadata_path, sep="\t", header=TRUE) %>% 
   filter(lid_pid != "LID_109490_PID_10416") %>%
   mutate(percent_unique = unique / reads)
 
-# Merge metadata
+# Merge data
 combined_data = merge(combined_data, metadata[,c("lid_pid", "monkey_id", "individual_sex", "group")])
 
-#=============================================================================
-# ESTIMATING WITHIN-INDIVIDUAL CONSISTENCY VIA PERMUTATIONS
-#=============================================================================
+# ----------------------------------------------------------------------------
+# === ESTIMATING WITHIN-INDIVIDUAL CONSISTENCY VIA PERMUTATIONS ===
+# ----------------------------------------------------------------------------
 
+# Scaling tissue deviations
 combined_data <- combined_data %>% 
   filter(!is.na(Residual_adult)) %>%
   group_by(tissue) %>% 
@@ -73,7 +86,8 @@ mean_randomized_var <- replicate(simulations, {
 p_value_ad <- mean(abs(mean_randomized_var - mean(mean_randomized_var)) >= abs(observed_mean - mean(mean_randomized_var)))
 p_value_ad
 
-## Plot observed vs randomized withinID variance
+# === Plot observed vs randomized withinID variance ===
+
 withinID_var <- combined_data %>%
   group_by(monkey_id) %>%
   summarise(withinID_var = var(Zresidual_ad, na.rm=TRUE)) %>% pull()
@@ -81,7 +95,8 @@ withinID_var <- combined_data %>%
 df_plot_withinID_var = data.frame(source = c("observed_mean",rep("randomized", length(mean_randomized_var)),rep("observed",length(withinID_var))),
                                   mean_var = c(observed_mean,mean_randomized_var,withinID_var))
 
-# Fig. 3D #one outlier was kept in the analysis (which is considered conservative with respect to the null hypothesis) but is omitted from the plot.
+# === Fig. 3E === #one outlier was kept in the analysis (which is considered conservative with respect to the null hypothesis) but is omitted from the plot.
+
 withinID_consistency = ggplot(df_plot_withinID_var %>% filter(source=="observed",mean_var<5),
                               aes(x=mean_var,fill=source))+
   geom_density(alpha=0.8,fill=NA)+
@@ -93,11 +108,12 @@ withinID_consistency = ggplot(df_plot_withinID_var %>% filter(source=="observed"
   theme_bw()+theme(axis.text = element_text(size=24, color="black"),
                    axis.title.y = element_text(size=24,color="black"),
                    axis.title.x = element_text(size=24, color="black",hjust=0.5), legend.position = "none")
-ggsave("/path/to/Figures/3E.png")
 
-#=============================================================================
-# WITHIN-INDIVIDUAL CONSISTENCY VIA LINEAR MODELS
-#=============================================================================
+ggsave(file.path(figure_path,"3E.png"))
+
+# -------------------------------------------------------
+# === WITHIN-INDIVIDUAL CONSISTENCY VIA LINEAR MODELS ===
+# -------------------------------------------------------
 
 df_no_outlier <- combined_data %>%
   filter(!is.na(Residual_adult), monkey_id != "22H") %>%
@@ -136,13 +152,14 @@ model_heterogeneity_aging_noOutlier_lm <- lm(Zresidual_ad ~ z_age + individual_s
 
 # Testing the explanatory power of individual ID
 anova(model_heterogeneity_aging_noOutlier_lmer, model_heterogeneity_aging_noOutlier_lm)
+
 RLRsim::exactLRT(model_heterogeneity_aging_noOutlier_lmer, model_heterogeneity_aging_noOutlier_lm)
 
-#=============================================================================
-# LINK BETWEEN ICC AND AGE SPREAD
-#=============================================================================
+# ------------------------------------------------------
+# === LINK BETWEEN ICC AND AGE SPREAD ===
+# ------------------------------------------------------
 
-## Test whether excluding certain ages impact ICC
+# Test whether excluding certain ages impact ICC
 
 col_df_icc <- c("age_thres","age_spread","age_means","sample_size","icc","ci_low","ci_high")
 df_icc <- data.frame(matrix(nrow=0, ncol=length(col_df_icc)))
@@ -184,7 +201,7 @@ p2_obs <- plot_icc(df_icc, "sample_size", "icc", "Number of individuals")
 p3_obs <- plot_icc(df_icc, "age_means", "icc", "Average age")
 p4_obs <- plot_icc(df_icc, "age_spread", "icc", "SD age")
 
-## Is the drop in ICC due to low sample size or narrower age spread? 
+# Is the drop in ICC due to low sample size or narrower age spread? 
 
 col_df_icc_rand <- c("age_spread","age_means","sample_size","icc","ci_low","ci_high")
 df_icc_rand <- data.frame(matrix(nrow=0, ncol=length(col_df_icc_rand)))
@@ -224,11 +241,11 @@ p3_subset <- plot_icc(df_icc_rand, "age_means", "icc", "Average age")
 p4_subset <- plot_icc(df_icc_rand, "age_spread", "icc", "SD age")
 
 ggpubr::ggarrange(p1_obs,p1_subset,p2_obs,p2_subset,p3_obs,p3_subset,p4_obs,p4_subset,ncol=2,nrow=4)
-ggsave("/path/to/Figures/FigS16.png")
+ggsave(file.path(figure_path,"FigS16.png"))
 
-#=============================================================================
-# WITHIN-INDIVIDUAL VARIANCE AND CORRELATES
-#=============================================================================
+# --------------------------------------------------------------------
+# === WITHIN-INDIVIDUAL VARIANCE AND CORRELATES ===
+# --------------------------------------------------------------------
 
 df_var <- df_no_outlier %>%
   group_by(monkey_id, chronological_age, individual_sex, group) %>%
@@ -296,4 +313,5 @@ ggplot(forest_df, aes(x=estimate, y=term, xmin=conf.low, xmax=conf.high)) +
   theme_bw() +
   theme(axis.text = element_text(size=14, color="black"),
         axis.title = element_text(size=14, color="black"))
-ggsave("/path/to/Figures/FigS12.png")
+
+ggsave(file.path(figure_path,"FigS12.png"))

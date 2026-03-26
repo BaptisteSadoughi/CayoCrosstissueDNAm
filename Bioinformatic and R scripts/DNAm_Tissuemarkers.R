@@ -1,37 +1,37 @@
-# ==============================================================================
+# ==================================================================================================
 # Define tissue-specific differentially methylated regions
 # -----------------------------------
 # The aim is to identify loci exhibiting consistent differences in DNAm levels with other tissues.
-# ==============================================================================
+# ==================================================================================================
 
+# === Clear workspace ===
 rm(list=ls())
 
-# === Load libraries
+# === Load libraries ===
 
 library_list <- c("dplyr","qvalue","PQLseq")
 lapply(library_list, require, character.only = TRUE)
 
 # === Paths ===
-
 base_path <- "/path/to/your/directory" # <-- set the path once
 
 metadata_path <- file.path(base_path,"metadata", "multitissue_metadata.txt")
 kinship_path <- file.path(base_path, "metadata", "wgs_kinmat.rds")
-alltissues <- c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thymus", "thyroid", "whole_blood")
+tissue_oi <- c("liver", "omental_at", "spleen", "kidney", "lung", "heart", "skeletal_muscle", "adrenal", "pituitary", "thymus", "thyroid", "whole_blood")
 
 # === Load data ===
-
 metadata = read.table(metadata_path, sep = "\t", header = TRUE) %>%
   mutate(AnimalID.text= paste("'", monkey_id, sep="")) %>%
-  filter(age_at_sampling > 2.9)
-metadata$percent_unique<-metadata$unique/metadata$reads
+  filter(age_at_sampling > 2.9) %>%
+  mutate(percent_unique = unique/reads)
+
 kinmat<-readRDS(kinship_path)
 kinmat_adults<-kinmat[rownames(kinmat) %in% metadata$monkey_id, colnames(kinmat) %in% metadata$monkey_id]
 
 # === Load methylation and coverage data ===
 
 cov_list <- list()
-for (i in alltissues) {
+for (i in tissue_oi) {
   filename <- gsub("XXX", i, file.path(base_path, "tissues_meth", "XXX_meth", 
                                        "Regions_pmeth_full_XXX_1000_14T.rds"))
   r <- readRDS(filename)
@@ -46,7 +46,7 @@ cov_list <- list()
 meth_list <- list()
 
 # Reload and filter to shared rows
-for (i in alltissues) {
+for (i in tissue_oi) {
   filename <- gsub("XXX", i, file.path(base_path, "tissues_meth", "XXX_meth", 
                                        "Regions_pmeth_full_XXX_1000_14T.rds"))
   r <- readRDS(filename)
@@ -67,7 +67,7 @@ in_args <- commandArgs(trailingOnly = TRUE)
 focaltissue=in_args
 message("Focal tissue: ", focaltissue)
 
-compare_tissues <- alltissues[alltissues != focaltissue]
+compare_tissues <- tissue_oi[tissue_oi != focaltissue]
 
 for(compare_tissue in compare_tissues){
 
@@ -83,7 +83,6 @@ message("Compare tissue: ", compare_tissue)
   cov<-focal$coverage
   cov_focal<-cov[shared_rows,]
 
-  
  compare <- readRDS(gsub("XXX",compare_tissue, file.path(base_path, "tissues_meth", "XXX_meth", 
                                                           "Regions_pmeth_full_XXX_1000_14T.rds")))
   meth<-compare$methylation
@@ -100,7 +99,7 @@ message("Compare tissue: ", compare_tissue)
   countsfiltered<-meth_both[,colnames(meth_both) %in% metadata_tissuespecific$lid_pid]
   covfiltered<-cov_both[,colnames(cov_both) %in% metadata_tissuespecific$lid_pid]
 
- #order the same
+# order the same
 covordered<-covfiltered[,colnames(countsfiltered)]
 stopifnot(identical(colnames(covfiltered), colnames(countsfiltered)))
 
@@ -162,17 +161,16 @@ predictor <- metadata_lid_tissuebin$tissue_bin
 }
    string1 <- gsub("XXX", focaltissue, file.path(base_path, "tissue_comparisons", "XXX_v_000_pairwise_pqlseq.rds"))
    string2 <- gsub("000", compare_tissue, string1)
-   saveRDS(converged, file= string2)
+   saveRDS(converged, file = string2)
 }
-
 
 # === Identify tissue-specific regions === 
 
 results<-list()
 
-for (focaltissue in alltissues){
+for (focaltissue in tissue_oi){
   
-  compare_tissues <- alltissues[alltissues != focaltissue]
+  compare_tissues <- tissue_oi[tissue_oi != focaltissue]
   
   for (compare_tissue in compare_tissues){
     

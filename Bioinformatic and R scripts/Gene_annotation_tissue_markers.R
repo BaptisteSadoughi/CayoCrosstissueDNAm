@@ -1,12 +1,18 @@
-####### GENE & ENHANCER ANNOTATION OF TISSUE-SPECIFIC MARKERS
+# ==============================================================================
+# Gene and enhancer annotation of tissue-specific markers
+# ==============================================================================
+
+# === Clear workspace ===
 rm(list = ls())
 
+# === Load libraries ===
 library_list <- c("corrplot","svglite","tidyverse","RColorBrewer","patchwork","GenomicRanges","GenomicFeatures","rtracklayer","msigdbr","fgsea")
 lapply(library_list, require, character.only=TRUE)
 
 # === Paths ===
-base_path <- "/path/to/project"
-tissuemarker_path <- file.path(base_path, "tissue_comparisons", "tissuespecific_methylation.txt")
+base_path <- "/path/to/project" # <-- Define this path only once
+
+output_path <- file.path(base_path, "output")
 gtf_path <- file.path(base_path, "mmulatta_gtf")
 
 # === Plot palette ===
@@ -30,14 +36,14 @@ tDMR <- tDMR %>% rename(site = region)
 tDMR$start <- as.numeric(tDMR$start)
 tDMR$end <- as.numeric(tDMR$end)
 
-# Tissues of interest
+# === Tissues of interest ===
 tissue_oi <- c("whole_blood","spleen","omental_at","heart","testis","ovaries","kidney","lung","adrenal","thymus","thyroid","pituitary","liver","skeletal_muscle")
 
-# =============================================================================
-# GENE ANNOTATION
-# =============================================================================
+# -------------------------------------------------------------
+# === GENE ANNOTATION ===
+# -------------------------------------------------------------
 
-# Load GTF
+# === Load GTF ===
 gtf_file <- file.path(gtf_path, "Macaca_mulatta.Mmul_10.110.gtf")
 gtf_macaque <- import(gtf_file)
 
@@ -48,7 +54,7 @@ gene_data <- data.frame(
   stringsAsFactors = FALSE
 ) %>% filter(!is.na(Gene)) %>% distinct(gene_id, Gene)
 
-# TxDb object
+# Create TxDb object
 txdb <- makeTxDbFromGFF(gtf_file)
 genes_ <- genes(txdb)
 promoters_ <- promoters(genes_, upstream = 2000, downstream = 200)
@@ -57,7 +63,7 @@ genomic_annotations <- list(genes = genes_, promoters = promoters_)
 # GRanges for tissue markers
 markers_gr <- with(tDMR, GRanges(seqnames = chr, IRanges(start, end), beta = mean_beta, tissue = sig_tissue))
 
-# Overlaps
+# === Run Overlap ===
 overlap_results_list <- list()
 for (annot in names(genomic_annotations)) {
   genome_feat <- genomic_annotations[[annot]]
@@ -69,12 +75,14 @@ for (annot in names(genomic_annotations)) {
   overlap_results_list[[annot]] <- df
 }
 
+# Extract gene bodies overlap
 gene_results <- overlap_results_list$genes %>%
   select(chr, start, end, sig_tissue, mean_beta, gene_id, Gene,
          seqnames_annotation, start_annotation, end_annotation, width, strand) %>%
   rename(marker_tissue = sig_tissue) %>%
   mutate(region = paste(chr, start, end, sep = "_"))
 
+# Extract promoters overlap
 promoter_results <- overlap_results_list$promoters %>%
   select(chr, start, end, sig_tissue, mean_beta, gene_id, Gene,
          seqnames_annotation, start_annotation, end_annotation, width, strand) %>%
@@ -83,10 +91,11 @@ promoter_results <- overlap_results_list$promoters %>%
 
 datasets <- list(gene_results = gene_results, promoter_results = promoter_results)
 
-# =============================================================================
-# FGSEA FUNCTION
-# =============================================================================
+# -------------------------------------------------------------
+# === FGSEA FUNCTION ===
+# -------------------------------------------------------------
 
+# === Function to perform fgsea ===
 compute_gene_stats <- function(df) {
   df %>%
     filter(!is.na(Gene)) %>%
@@ -101,7 +110,7 @@ compute_gene_stats <- function(df) {
     })
 }
 
-# Load MSigDB once
+# === Load MSigDB ===
 gene_sets <- list(
   BP   = list(data = msigdbr(species = "Macaca mulatta", subcollection = "GO:BP"),
               label = "biological_processes", clean = "GOBP_"),
@@ -117,7 +126,7 @@ gene_sets <- list(
 
 gene_sets <- lapply(gene_sets, function(x) { x$pathways <- split(x$data$gene_symbol, x$data$gs_name); x })
 
-# FGSEA runner
+# === FGSEA runner ===
 run_fgsea_all <- function(datasets, gene_sets) {
   results <- list()
   for (ds_name in names(datasets)) {
@@ -147,12 +156,12 @@ run_fgsea_all <- function(datasets, gene_sets) {
 final_gene_set_enrichment <- run_fgsea_all(datasets, gene_sets) %>%
   mutate(annotation = recode(annotation, gene_results = "gene_body", promoter_results = "promoter"))
 
-# =============================================================================
-# ENHANCER DMR FGSEA
-# =============================================================================
+# --------------------------------
+# === ENHANCER DMR FGSEA ===
+# --------------------------------
 
-# Load tissue-marker chromHMM annotation
-tissue_marker_chrom <- readRDS(file.path(base_path, "revised_tissue_markers_chromHMM_annotated.rds"))
+# === Load tissue-marker chromHMM annotation ===
+tissue_marker_chrom <- readRDS(file.path(base_path, "tissue_markers_chromHMM_annotated.rds"))
 names_chrom <- names(tissue_marker_chrom)
 for(i in seq_along(tissue_marker_chrom)) tissue_marker_chrom[[i]]$chromHMM <- names_chrom[i]
 
@@ -190,7 +199,7 @@ enhancer_markers_gr_list <- lapply(enhancer_markers_betas, function(df) {
           df[, intersect(colnames(df), c("sig_hypo","sig_hyper","mean_beta","marker","tissue")), drop = FALSE])
 })
 
-# FGSEA for enhancer markers
+# === FGSEA for enhancer markers ===
 go_categories <- c(BP = "biological_processes", CC = "cellular_component", MF = "molecular_function")
 go_sets <- lapply(names(go_categories), function(cat) {
   gs <- msigdbr(species = "Macaca mulatta", subcollection = paste0("GO:", cat))
@@ -233,18 +242,14 @@ for(subset_name in names(enhancer_markers_gr_list)) {
 
 final_enhancer_enrichment <- bind_rows(all_enhancer_results)
 
-# =============================================================================
-# SAVE RESULTS
-# =============================================================================
-
-dir.create(file.path(base_path, "Tissue_spe_methylation"), showWarnings = FALSE)
+# === SAVE RESULTS ===
 
 write.csv(final_gene_set_enrichment %>%
             mutate(leadingEdge = sapply(leadingEdge, function(x) paste(x, collapse=";"))),
-          file = file.path(base_path, "Tissue_spe_methylation", "gene_set_enrichment_tissuemarkers.csv"),
+          file = file.path(output_path, "gene_set_enrichment_tissuemarkers.csv"),
           quote = FALSE, row.names = FALSE)
 
 write.csv(final_enhancer_enrichment %>%
             mutate(leadingEdge = sapply(leadingEdge, function(x) paste(x, collapse=";"))),
-          file = file.path(base_path, "Tissue_spe_methylation", "enhancer_set_enrichment_tissuemarkers.csv"),
+          file = file.path(output_path, "enhancer_set_enrichment_tissuemarkers.csv"),
           quote = FALSE, row.names = FALSE)

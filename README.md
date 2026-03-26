@@ -174,7 +174,7 @@ sbatch --cpus-per-task=15 --mem=100G -p general -q public -t 0-4 --array=1-(max 
 Age predictions are gathered and formatted using [Tissue_AgePredictions.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissue_AgePredictions.R).
 
 ### Analysis of age deviations
-We investigate the association between age deviations and body mass using [MethylAgeDeviation_bodymass.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/MethylAgeDeviation_bodymass.R). Age deviations are further analyzed to examine patterns of within-individual heterogeneity in DNAmethylation aging using [Withinindividual_heterogeneity.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/WithinIndividual_heterogeneity.R) and [Multitissue_AgingPheno.R].
+We investigate the association between age deviations and body mass using [MethylAgeDeviation_bodymass.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/MethylAgeDeviation_bodymass.R). Age deviations are further analyzed to examine patterns of within-individual heterogeneity in DNAmethylation aging using [Withinindividual_heterogeneity.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/WithinIndividual_heterogeneity.R) and [Multitissue_AgingPheno.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Multitissue_AgingPheno.R).
 
 ## ELA-associated differential methylation
 

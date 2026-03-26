@@ -4,10 +4,10 @@
 library(Biostrings)
 library(bsseq)
 
-# Define your base directory here
-base_path="/path/to/base_path"
+## Define your base directory here
+base_path = "/path/to/base_path"
 
-# load macaque genome
+## load macaque genome
 mmul10_fa = readDNAStringSet("/path/to/genomes/bismark/Macaca_mulatta.Mmul_10.chr_only.fa",format="fasta")
 
 ## filter for the first 21 chromosomes (chr1-chrX)

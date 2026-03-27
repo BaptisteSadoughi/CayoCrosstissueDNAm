@@ -15,6 +15,7 @@ base_path <- "/path/to/project"  # <-- Define this path only once
 
 bed_path <- file.path(base_path, "bedfiles")
 figure_path <- file.path(base_path, "Figures")
+output_path <- file.path(base_path, "output")
 
 # === Tissues of interest ===
 
@@ -69,7 +70,7 @@ chrom_anno <- c("promoter", "active_tx","enhancer","znf","heterochromatin","biva
 # === Load tissue marker ===
 
 # Load the concatenated list of tissue markers from Table S4
-tDMR <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
+tDMR <- readxl::read_excel(paste0(output_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
 
 tDMR <- tDMR %>% rename(sites = region)
 

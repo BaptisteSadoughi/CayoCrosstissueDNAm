@@ -44,14 +44,14 @@ meta <- read.table(metadata_path, sep = "\t", header = TRUE) %>%
                 dplyr::select(lid_pid, age, monkey_id, tissue)
 
 # Match metadata and methylation data
-meta <- meta[meta$grantparent_tissueType %in% names(pmeth), ]
+meta <- meta[meta$tissue %in% names(pmeth), ]
 all_colnames <- unique(unlist(lapply(pmeth, colnames)))
 meta <- meta[meta$lid_pid %in% all_colnames, ]
 
 # Check that metadata and methylation data match
 for(tissue_value in names(pmeth)){
-  if (length(meta$lid_pid[meta$grantparent_tissueType == tissue_value]) != length(colnames(pmeth[[as.character(tissue_value)]])) ||
-      !all.equal(meta$lid_pid[meta$grantparent_tissueType == tissue_value], colnames(pmeth[[tissue_value]]))) {
+  if (length(meta$lid_pid[meta$tissue == tissue_value]) != length(colnames(pmeth[[as.character(tissue_value)]])) ||
+      !all.equal(meta$lid_pid[meta$tissue == tissue_value], colnames(pmeth[[tissue_value]]))) {
     stop(paste("STOP metadata and samples info are not equal for", tissue_value))
   }
 }

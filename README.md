@@ -15,7 +15,7 @@ ashr, Cairo, car, circlize, ComplexHeatmap, ComplexUpset, corrplot, dendextend, 
 
 BiocGenerics, BiocParallel, Biostrings, bsseq, comethyl, DelayedMatrixStats, GenomicFeatures, GenomicRanges, MatrixGenerics, methyLImp2, msigdbr, PQLseq, rtracklayer.
 
-**External software:** (must be installed as a system-level tool or loaded via module)
+**External softwares:** (must be installed as a system-level tool or loaded via module)
 
 bedtools, bismark, bowtie2, cutadapt, samtools, trim_galore.
 

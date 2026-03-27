@@ -16,6 +16,7 @@ lapply(library_list, require, character.only = TRUE)
 # === Paths ===
 base_path <- "/path/to/your/directory" # <-- set the path once
 
+output_path <- file.path(base_path, "output")
 figure_path <- file.path(base_path, "Figures")
 
 # === Recode tissue names for plotting ===
@@ -36,7 +37,7 @@ tissue_plot <- c(tissue_plot, new_levels)
 extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 
 # === Load data (concatenated list of tissue markers from Table S4)
-tissue_markers <- readxl::read_excel(paste0(base_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
+tissue_markers <- readxl::read_excel(paste0(output_path, "/SupplementaryTables.xlsx"), sheet = "TableS4")
 
 tissue_markers$marker <- ifelse(tissue_markers$mean_beta>0,"hyper","hypo")
 

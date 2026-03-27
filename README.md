@@ -8,12 +8,15 @@ All analyses were performed via the command line in a Bash environment, using th
 **Required R packages**
 
 *CRAN packages:*
+
 ashr, Cairo, car, circlize, ComplexHeatmap, ComplexUpset, corrplot, dendextend, DHARMa, factoextra, fgsea, flashier, ggpubr, glmnet, gplots, interactions, jtools, lme4, mashr, mice, NbClust, performance, pheatmap, qvalue, scales, svglite, tidyverse, umap, useful.
 
 *Bioconductor packages:*
+
 BiocGenerics, BiocParallel, Biostrings, bsseq, comethyl, DelayedMatrixStats, GenomicFeatures, GenomicRanges, MatrixGenerics, methyLImp2, msigdbr, PQLseq, rtracklayer.
 
 **External software:** (must be installed as a system-level tool or loaded via module)
+
 bedtools, bismark, bowtie2, cutadapt, samtools, trim_galore.
 
 ---

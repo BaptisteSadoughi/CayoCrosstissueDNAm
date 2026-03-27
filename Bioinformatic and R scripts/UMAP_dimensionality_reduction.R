@@ -102,7 +102,7 @@ extended_palette <- c(extended_palette, setNames(new_colors, new_levels))
 extended_palette <- extended_palette[color_order]
 
 # Ensure metadata uses the updated levels
-metadata_lid$grantparent_tissueType <- factor(metadata_lid$grantparent_tissueType, levels = color_order)
+metadata_lid$tissue <- factor(metadata_lid$tissue, levels = color_order)
 
 # === Plotting Helper ===
 

@@ -50,17 +50,41 @@ All analyses were performed via the command line in a Bash environment, using th
 To install the required R packages, run the following commands in your R session:
 
 ```r
-# Install BiocManager if not already installed
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
+# List of all packages to install
+all_packages <- c(
+  "ashr", "BiocGenerics", "BiocParallel", "Biostrings", "bsseq", "car",
+  "Cairo", "circlize", "ComplexHeatmap", "ComplexUpset", "comethyl",
+  "corrplot", "dendextend", "DelayedMatrixStats", "DHARMa", "dplyr",
+  "factoextra", "fgsea", "flashier", "GenomicFeatures", "GenomicRanges",
+  "ggpubr", "glmnet", "gplots", "grid", "interactions", "jtools",
+  "lme4", "lmerTest", "mashr", "MatrixGenerics", "methyLImp2", "mice",
+  "msigdbr", "NbClust", "parallel", "patchwork", "performance", "pheatmap",
+  "PQLseq", "purrr", "qvalue", "reshape2", "RColorBrewer", "rlang",
+  "rtracklayer", "scales", "splines", "stringr", "svglite", "tidyr",
+  "tidyverse", "umap", "useful"
+)
+
+# Install packages from CRAN
+cran_packages <- setdiff(all_packages, c("bsseq", "GenomicFeatures", "GenomicRanges",
+                                        "DelayedMatrixStats", "methyLImp2", "msigdbr",
+                                        "rtracklayer", "BiocGenerics", "BiocParallel",
+                                        "Biostrings", "ComplexHeatmap", "fgsea"))
+
+install.packages(cran_packages, dependencies = TRUE)
 
 # Install Bioconductor packages
-BiocManager::install(c("bsseq","BiocGenerics","GenomicRanges","GenomicFeatures","PQLseq","qvalue","methyLImp2","comethyl","DelayedMatrixStats","BiocParallel"
-))
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
 
-# Install CRAN packages
-install.packages(c("corrplot","RColorBrewer","pheatmap","svglite","ggpubr","grid","glmnet","jtools","lmerTest","mashr","ashr","flashier","MatrixGenerics","umap"
-))
+bioc_packages <- c("bsseq", "GenomicFeatures", "GenomicRanges",
+                  "DelayedMatrixStats", "methyLImp2", "msigdbr",
+                  "rtracklayer", "BiocGenerics", "BiocParallel",
+                  "Biostrings", "ComplexHeatmap", "fgsea")
+
+BiocManager::install(bioc_packages)
+
+# Load all packages
+lapply(all_packages, library, character.only = TRUE)
 ```
 
 ## Processing of fastq files

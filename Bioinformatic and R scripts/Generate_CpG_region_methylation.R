@@ -80,7 +80,7 @@ DNAm_data_red_list <- parallel::mclapply(chrs,function(x){
 # --------------------------------------
 
 # Get unique tissue types from metadata
-tissues = c(unique(metadata$grantparent_tissueType))
+tissues = c(unique(metadata$tissue))
 tissue_oi = tissues
 
 DNAm_data_red_filtered_list=mclapply(chrs, filter_CpGs,

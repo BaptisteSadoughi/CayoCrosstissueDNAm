@@ -75,8 +75,8 @@ dend <- as.dendrogram(hc)
 # Prepare annotation colors
 
 # tissue type
-tissue_fac <- factor(metadata$grantparent_tissueType)
-tissue_cols <- extended_palette[metadata$grantparent_tissueType]
+tissue_fac <- factor(metadata$tissue)
+tissue_cols <- extended_palette[metadata$tissue]
 
 # reorder colors to match dendrogram leaf order
 leaf_order <- labels(dend)

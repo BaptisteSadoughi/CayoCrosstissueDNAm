@@ -18,7 +18,7 @@ filter_CpGs <- function(x, bsseq_list, metadata, tissues, min_cov, p_sample, med
   for (subgroup in tissues) {
     # now<-Sys.time()
     # Subset metadata to get samples for the current tissue
-    group_samples <- metadata$lid_pid[metadata$grantparent_tissueType == subgroup]
+    group_samples <- metadata$lid_pid[metadata$tissue == subgroup]
 
     # Subset the BSseq object to the current tissue samples
     subgroupbsseq <- bsseq_object[, group_samples]
@@ -120,7 +120,7 @@ compute_and_filter_regions <- function(x, bsseq_list, metadata, tissues, hypomet
   # Compute row means for each grouping factor tissue
   each_tissue_means <- sapply(tissues, function(subgroup) {
     
-    group_samples <- metadata$lid_pid[metadata$grantparent_tissueType == subgroup]
+    group_samples <- metadata$lid_pid[metadata$tissue == subgroup]
     temp_pmeth <- bsseq_object$pmeth[,colnames(bsseq_object$pmeth) %in% group_samples]
     rowMeans(temp_pmeth, na.rm = TRUE)
     
@@ -201,7 +201,7 @@ get_summary_regions <- function(x){
 tissue_specific_coverage <- function(matrix_list, tissue, metadata_sample, in_at_least_Xperc_samples, med_cov_filter) {
 
   # Extract 'lid_pid' values for the current tissue level
-  tissue_lids <- metadata_sample$lid_pid[metadata_sample$grantparent_tissueType %in% tissue]
+  tissue_lids <- metadata_sample$lid_pid[metadata_sample$tissue %in% tissue]
 
   # Filter cov matrix based on tissue_lids
   subset_cov <- matrix_list$coverage[, colnames(matrix_list$coverage) %in% tissue_lids]

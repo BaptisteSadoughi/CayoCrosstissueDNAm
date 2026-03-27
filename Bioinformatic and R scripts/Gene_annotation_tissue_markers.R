@@ -31,7 +31,7 @@ recode_map <- c(
 )
 
 # === Load tissue marker table ===
-tDMR <- readxl::read_excel(file.path(base_path, "SupplementaryTables.xlsx"), sheet = "TableS4")
+tDMR <- readxl::read_excel(file.path(output_path, "SupplementaryTables.xlsx"), sheet = "TableS4")
 tDMR <- tDMR %>% rename(site = region)
 tDMR$start <- as.numeric(tDMR$start)
 tDMR$end <- as.numeric(tDMR$end)

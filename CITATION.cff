@@ -14,7 +14,7 @@ authors:
   given-names: "Amanda J."
   orcid: "https://orcid.org/0000-0002-8827-2750"
 title: "Repository Age and early life adversity shape heterogeneity of the epigenome across tissues in macaques"
-version: 2.0.4
+version: 1.0.0
 doi: 10.5281/zenodo.19329313
 date-released: 2026-03-30
 url: "https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm"

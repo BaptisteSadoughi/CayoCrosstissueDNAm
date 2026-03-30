@@ -135,7 +135,7 @@ Before running the scripts:
 Binomial mixed models testing for the association between age and methylation levels are performed using [Age_methylation_modelling.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_methylation_modelling.R), and effect size estimates are refined using Multivariate Adaptive Shrinkage in [Age_mashr.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Age_mashr.R).
 
 ### Annotation and enrichment
-Before running the script [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh):
+Before running [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh):
 
 1. Set the path to your central directory (`base_path`) inside the script.
 2. Download annotation files into a subdirectory (`base_path/annotations`)

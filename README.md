@@ -120,7 +120,7 @@ The ability to determine tissue identity based on methylation profiles was asses
 [Tissue_classification_glmnet.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissue_classification_glmnet.R).
 
 ## Tissue specific DNAm markers
-Tissue-specific differential methylation is tested using binomial mixed models with [DNAm_Tissuemarkers.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/DNAm_Tissuemarkers.R). Output can be concatenated using Combine_tissuemarkers.R.
+Tissue-specific differential methylation is tested using binomial mixed models with [DNAm_Tissuemarkers.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/DNAm_Tissuemarkers.R). The concatenated list of tissue-specific markers is available in SupplementaryTable S4.
 
 Top tissue-specific markers are visualized using [Tissuemarkers_plot.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_plot.R), and enrichment for chrommHMM states is plotted using [Tissuemarkers_annotation.R](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/Tissuemarkers_annotation.R).
 

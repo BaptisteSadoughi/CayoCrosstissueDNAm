@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you reuse or adapt all or part of this work, please cite it as below."
+authors:
+- family-names: "Sadoughi"
+  given-names: "Baptiste"
+  orcid: "https://orcid.org/0000-0001-5626-3318"
+- family-names: "Petersen"
+  given-names: "Rachel M."
+  orcid: "https://orcid.org/0000-0002-4530-7095"
+- family-names: "Snyder-Mackler"
+  given-names: "Noah"
+  orcid: "https://orcid.org/0000-0003-3026-6160"
+- family-names: "Lea"
+  given-names: "Amanda J."
+  orcid: "https://orcid.org/0000-0002-8827-2750"
+title: "Repository Age and early life adversity shape heterogeneity of the epigenome across tissues in macaques"
+version: 2.0.4
+doi: 10.5281/zenodo.19329313
+date-released: 2026-03-30
+url: "https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm"

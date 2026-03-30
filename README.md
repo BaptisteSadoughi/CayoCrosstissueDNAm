@@ -1,4 +1,4 @@
-# CayoCrosstissueDNAm
+# CayoCrosstissueDNAm [![DOI](https://zenodo.org/badge/996720159.svg)](https://doi.org/10.5281/zenodo.19329312)
 **Repository for the project on multi-tissue DNA methylation in Cayo Santiago rhesus macaques (bulk-tissue rrbs).**
 
 Analyses were performed using the Arizona State University SOL supercomputer (DOI: [10.1145/3569951.3597573](https://doi.org/10.1145/3569951.3597573)) on high-performance computing (HPC) clusters. We have aimed to generalize the code by removing system-specific references to installed software and modules. A list of required software and versions is provided below. On HPC systems, all required scripts and binaries must be accessible through the system's PATH. We suggest that users create a main directory `base_path` containing the `Bioinformatic and R scripts` and `metadata` folders. 

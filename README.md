@@ -138,7 +138,7 @@ Binomial mixed models testing for the association between age and methylation le
 Before running [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh):
 
 1. Set the path to your central directory (`base_path`) inside the script.
-2. Download annotation files into a subdirectory (`base_path/annotations`)
+2. Download annotation files into a subdirectory (`base_path/annotations`). The folder should contain bed files with ChromHmm annotations lifted over from the human to the macaque genome and bed files with locations of age-associated and ELA-associated sites for each tissue.
    
 Age-associated sites are intersected with genomic annotations and chrommHMM states using [script_annotating_sites.sh](https://github.com/BaptisteSadoughi/CayoCrosstissueDNAm/blob/main/Bioinformatic%20and%20R%20scripts/script_annotating_sites.sh).
 ```bash

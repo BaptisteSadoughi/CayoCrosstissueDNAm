@@ -24,16 +24,12 @@ rds_path <- file.path(meth_dir, paste0(tissue, "_meth"), paste0("Regions_pmeth_f
 
 # === Load data ===
 
-metadata_lid = read.csv(file.path(metadata_path,"ELA_metadata.csv"), header = TRUE) %>%
+meta_ELA <- read.csv(metadata_path, header = TRUE) %>%
   mutate(AnimalID.text= paste("'", monkey_id, sep="")) %>%
   filter(lid_pid != "LID_109490_PID_10416") %>%
   filter(age_at_sampling > 2.9) %>%
   filter(monkey_id != "22H") %>%
   mutate(percent_unique = unique/reads)
-
-ELA_data = read.csv(file.path(metadata_path, "ELA_data.csv"))
-
-meta_ELA<-merge(metadata_lid, ELA_data, by="AnimalID.text")
 
 kinmat<-readRDS(kinship_path)
 
